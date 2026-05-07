@@ -10,6 +10,7 @@ import { dirname, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import BN from "bn.js";
 import { Keypair, PublicKey } from "@solana/web3.js";
+import { NATIVE_MINT, TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import {
   PUMP_SDK,
   OnlinePumpSdk,
@@ -51,6 +52,8 @@ Optional:
   --cashback                Enable cashback for this coin (default: off)
   --tokenized-agent         Enable tokenized agent (default: off; requires initial buy > 0)
   --buyback-bps <int>       Buyback basis points for tokenized agent (default: ${DEFAULT_BUYBACK_BPS} = 50%; requires --tokenized-agent)
+  --quote-mint <PUBKEY>     Non-SOL quote mint (e.g. USDC). When set, routes through createV2AndBuyV2.
+                            --sol-lamports is reinterpreted as quote-base-units.
   --alt-address <PUBKEY>    Address Lookup Table; defaults to mainnet/devnet built-in ALT if omitted
   --compute-units <int>     Default: ${CREATE_AND_BUY_COMPUTE_UNITS} (270k create + 120k buy per frontend constants)
   --priority-micro-lamports <int>  Fixed priority fee; omit to use getPriorityFeeEstimate RPC (floor 100k)
@@ -75,6 +78,7 @@ async function main() {
       cashback: { type: "boolean", default: false },
       "tokenized-agent": { type: "boolean", default: false },
       "buyback-bps": { type: "string" },
+      "quote-mint": { type: "string" },
       "alt-address": { type: "string" },
       "compute-units": { type: "string" },
       "priority-micro-lamports": { type: "string" },
@@ -104,6 +108,12 @@ async function main() {
   const buybackBps = values["buyback-bps"] != null
     ? parsePositiveInt(values["buyback-bps"], DEFAULT_BUYBACK_BPS)
     : DEFAULT_BUYBACK_BPS;
+
+  const quoteMintOverride =
+    values["quote-mint"] != null && values["quote-mint"] !== ""
+      ? requirePublicKey("--quote-mint", values["quote-mint"])
+      : null;
+  const useV2Quote = quoteMintOverride != null && !quoteMintOverride.equals(NATIVE_MINT);
 
   if (tokenizedAgent && solLamports <= 0) {
     throw new Error("--tokenized-agent requires --sol-lamports > 0 (tokenized agent coins cannot be free)");
@@ -150,29 +160,55 @@ async function main() {
 
   const mintKeypair = Keypair.generate();
   const mint = mintKeypair.publicKey;
-  const solAmount = new BN(solLamports);
+  const quoteAmount = new BN(solLamports);
 
   const tokenAmount = getBuyTokenAmountFromSolAmount({
     global,
     feeConfig,
     mintSupply: null,
     bondingCurve: null,
-    amount: solAmount,
+    amount: quoteAmount,
   });
 
-  const sdkInstructions = await PUMP_SDK.createV2AndBuyInstructions({
-    global,
-    mint,
-    name,
-    symbol,
-    uri: metadataUri,
-    creator: user,
-    user,
-    amount: tokenAmount,
-    solAmount,
-    mayhemMode,
-    cashback,
-  });
+  let sdkInstructions;
+  if (useV2Quote) {
+    // USDC (or any non-SOL quote) coin. The SPL Token program owns USDC,
+    // not Token-2022 — pass legacy SPL as quoteTokenProgram.
+    const quoteOwnerInfo = await connection.getAccountInfo(quoteMintOverride);
+    if (!quoteOwnerInfo) throw new Error(`Quote mint not found: ${quoteMintOverride.toBase58()}`);
+    const quoteTokenProgram = quoteOwnerInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
+      ? TOKEN_2022_PROGRAM_ID
+      : TOKEN_PROGRAM_ID;
+    sdkInstructions = await PUMP_SDK.createV2AndBuyV2Instructions({
+      global,
+      mint,
+      name,
+      symbol,
+      uri: metadataUri,
+      creator: user,
+      user,
+      amount: tokenAmount,
+      quoteAmount,
+      mayhemMode,
+      cashback,
+      quoteMint: quoteMintOverride,
+      quoteTokenProgram,
+    });
+  } else {
+    sdkInstructions = await PUMP_SDK.createV2AndBuyInstructions({
+      global,
+      mint,
+      name,
+      symbol,
+      uri: metadataUri,
+      creator: user,
+      user,
+      amount: tokenAmount,
+      solAmount: quoteAmount,
+      mayhemMode,
+      cashback,
+    });
+  }
 
   if (tokenizedAgent) {
     const agentInitializeIx = await PumpAgentOffline.load(mint).create({
@@ -208,6 +244,8 @@ async function main() {
     mintPublicKey: mint.toBase58(),
     mintKeypairPath: resolvedOut,
     quoteTokenAmount: tokenAmount.toString(),
+    quoteAmount: quoteAmount.toString(),
+    quoteMint: (quoteMintOverride ?? NATIVE_MINT).toBase58(),
     solLamports,
     mayhemMode,
     cashback,

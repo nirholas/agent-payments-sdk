@@ -89,7 +89,7 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 | Operation                                | Script                               | Example                                                                                                                                                                                                                                                                  |
 | ---------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Fetch coin state (HTTP)                  | `scripts/fetch-coin.mjs`             | `node scripts/fetch-coin.mjs --mint <MINT> --subset`                                                                                                                                                                                                                     |
-| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--cashback] [--tokenized-agent --buyback-bps 5000] [--alt-address <PUBKEY>]`               |
+| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--cashback] [--tokenized-agent --buyback-bps 5000] [--quote-mint <USDC>] [--alt-address <PUBKEY>]`               |
 
 - Run any script with `--help` for full flags (`--mayhem-mode`, `--tokenized-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
 - Tx builders print **one JSON object** on stdout with `transaction` (base64-encoded VersionedTransaction, partially signed when the mint keypair is used on create). **Never** pass end-user private keys into these scripts.
@@ -175,6 +175,14 @@ Full transaction building (compute budget, blockhash, partial sign) is implement
 When `--tokenized-agent` is enabled, an additional `PumpAgentOffline.load(mint).create(...)` instruction (from `@pump-fun/agent-payments-sdk`) is appended after the create+buy instructions. The `--buyback-bps` flag controls the agent buyback percentage in basis points (default: 5000 = 50%). Tokenized agent coins **must** have an initial buy > 0 SOL.
 
 Token amount for the initial buy is derived with `getBuyTokenAmountFromSolAmount` (`mintSupply: null`, `bondingCurve: null`).
+
+### Non-SOL quote mints (USDC etc.)
+
+Pass `--quote-mint <PUBKEY>` to mint a coin paired against any SPL mint other than wSOL. When set, the script routes through `PUMP_SDK.createV2AndBuyV2Instructions` (instead of the default SOL `createV2AndBuyInstructions`) and the `--sol-lamports` value is reinterpreted as quote-base-units (e.g. `1_000_000` for `1.000000` USDC). The `quoteTokenProgram` is auto-detected from the quote mint owner.
+
+USDC mainnet: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
+
+> **Whitelist gating:** the bonding-curve program admins maintain a `quote_mint` whitelist. Pump.fun announced (2026-05-07) that USDC creation is rolled out but **not yet enabled** — expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a non-wSOL quote will fail with `QuoteMintNotWhitelisted`.
 
 ## Compute units and priority fees
 

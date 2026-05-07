@@ -1,0 +1,5 @@
+/target
+/test-ledger
+artifacts/*.zst
+artifacts/*.json
+!artifacts/README.md

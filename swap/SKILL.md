@@ -80,8 +80,12 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 | Operation | Script | Example |
 | --------- | ------ | ------- |
 | Fetch coin state (HTTP) | `scripts/fetch-coin.mjs` | `node scripts/fetch-coin.mjs --mint <MINT> --subset` |
-| Buy (bonding curve) | `scripts/build-buy-bonding-tx.mjs` | `node scripts/build-buy-bonding-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
-| Sell (bonding curve) | `scripts/build-sell-bonding-tx.mjs` | `node scripts/build-sell-bonding-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
+| Buy (bonding curve, legacy SOL) | `scripts/build-buy-bonding-tx.mjs` | `node scripts/build-buy-bonding-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
+| Sell (bonding curve, legacy SOL) | `scripts/build-sell-bonding-tx.mjs` | `node scripts/build-sell-bonding-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
+| Buy (bonding curve, **v2 unified**) | `scripts/build-buy-bonding-v2-tx.mjs` | `node scripts/build-buy-bonding-v2-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--quote-mint <USDC>]` |
+| Sell (bonding curve, **v2 unified**) | `scripts/build-sell-bonding-v2-tx.mjs` | `node scripts/build-sell-bonding-v2-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--quote-mint <USDC>]` |
+| Buy exact-quote-in (**v2**) | `scripts/build-buy-exact-quote-in-v2-tx.mjs` | `node scripts/build-buy-exact-quote-in-v2-tx.mjs --mint <MINT> --user <PUBKEY> --spendable-quote-in 1000000 --min-tokens-out 1` |
+| Claim cashback (**v2**) | `scripts/build-claim-cashback-v2-tx.mjs` | `node scripts/build-claim-cashback-v2-tx.mjs --user <PUBKEY> [--quote-mint <USDC>]` |
 | Buy (AMM) | `scripts/build-buy-amm-tx.mjs` | `node scripts/build-buy-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
 | Sell (AMM) | `scripts/build-sell-amm-tx.mjs` | `node scripts/build-sell-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
 | Balances | `scripts/print-balances.mjs` | `node scripts/print-balances.mjs --wallet <PUBKEY> --mint <MINT>` |
@@ -208,6 +212,51 @@ Uses `getSellSolAmountFromTokenAmount` and `PUMP_SDK.sellInstructions`. Same RPC
 | `cashback`                | `boolean`             | Derived from `bondingCurve.isCashbackCoin`       |
 
 The sell script reads `mayhemMode` and `cashback` from the decoded on-chain bonding curve account automatically, matching the frontend `blockchainStore.getSwapTx` behavior. No flags needed.
+
+## Buy / sell V2 (unified SOL + USDC)
+
+As of `@pump-fun/pump-sdk@1.35.0` and the bonding-curve program upgrade dated 2026-05-07, three new instructions take a `quote_mint` so the same call works for SOL- and USDC-paired coins:
+
+| Instruction | TS helper | Local script |
+| --- | --- | --- |
+| `buy_v2` | `PUMP_SDK.buyV2Instructions(...)` | `build-buy-bonding-v2-tx.mjs` |
+| `sell_v2` | `PUMP_SDK.sellV2Instructions(...)` | `build-sell-bonding-v2-tx.mjs` |
+| `buy_exact_quote_in_v2` | _no SDK helper_ — drive Anchor program directly | `build-buy-exact-quote-in-v2-tx.mjs` |
+| `claim_cashback_v2` | `PUMP_SDK.claimCashbackV2Instruction(...)` | `build-claim-cashback-v2-tx.mjs` |
+
+Quote-mint resolution is identical to the rust client (`vendor/pump-rust-client/src/sdk/pump_v2.rs`):
+
+1. If `--quote-mint` is omitted, default to `bondingCurve.quoteMint` (set by `create_v2`); fall back to **wSOL** (`So11111111111111111111111111111111111111112`) when the coin is legacy SOL (on-chain `quoteMint` is `Pubkey::default()`).
+2. `quoteTokenProgram` is auto-detected from the quote mint owner: legacy SPL Token for wSOL & USDC, Token-2022 for any 2022 quote.
+3. Base mint program is detected from the mint account owner exactly like the legacy scripts.
+
+USDC mainnet mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
+
+> **USDC-paired creation gating:** the program supports `quote_mint` whitelist administration via `add_quote_mint`/`remove_quote_mint`. Pump.fun announced (2026-05-07) that USDC creation is rolled out but **not yet enabled** on the whitelist; expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a USDC quote will fail with `QuoteMintNotWhitelisted` / `UnsupportedQuoteMint`. The v2 trade scripts can be exercised against existing SOL coins today.
+
+### Parameters (`buyV2Instructions` / `sellV2Instructions`)
+
+| Parameter           | Type                          | Description |
+| ------------------- | ----------------------------- | ----------- |
+| `global`            | `Global`                      | Global state |
+| `bondingCurveAccountInfo` | `AccountInfo<Buffer>`   | Raw account |
+| `bondingCurve`      | `BondingCurve`                | Decoded — note the v2 struct uses `virtualQuoteReserves`/`realQuoteReserves` (renamed from `*SolReserves`) and adds `quoteMint` |
+| `mint` / `user`     | `PublicKey`                   |             |
+| `amount`            | `BN`                          | Base tokens (6 dp) |
+| `quoteAmount`       | `BN`                          | Quote in/out, base units of the **quote** mint (lamports for SOL, 1e6 for USDC) |
+| `slippage`          | `number`                      | Percent (same convention as legacy) |
+| `tokenProgram`      | `PublicKey`                   | Base mint program |
+| `quoteTokenProgram` | `PublicKey`                   | Quote mint program (legacy SPL for wSOL & USDC) |
+
+`buyV2Instructions` additionally takes `associatedUserAccountInfo`. `sellV2Instructions` does not — selling does not need pre-existing user ATA bookkeeping in the same way.
+
+### Buy exact quote in (no SDK helper yet)
+
+`@pump-fun/pump-sdk@1.35.0` ships the IDL for `buy_exact_quote_in_v2` (discriminator `[194,171,28,70,104,77,91,47]`) but **not** a TS helper. `scripts/build-buy-exact-quote-in-v2-tx.mjs` constructs it manually via `getPumpProgram(connection).methods.buyExactQuoteInV2(...)`, mirroring the rust client's account derivation in `vendor/pump-rust-client/src/sdk/pump_v2.rs`. Use it when you want **deterministic quote spend** (e.g. "spend exactly 1 USDC, accept whatever tokens"). Fee recipient + buyback fee recipient are picked from `global` and the SDK's static buyback list (`scripts/lib/fee-recipients.mjs`).
+
+### Bonding curve struct rename
+
+The v2 program reshapes the on-chain `BondingCurve` account: `virtualSolReserves` → `virtualQuoteReserves`, `realSolReserves` → `realQuoteReserves`, plus a new `quoteMint` field. Legacy SOL coins still report `quoteMint = Pubkey::default()`; the SDK's `decodeBondingCurve` yields the new struct shape regardless. Code that explicitly read `bondingCurve.realSolReserves` will return `undefined` on the new SDK — switch to the quote-named fields. The math helpers (`getBuyTokenAmountFromSolAmount`, etc.) keep their "Sol" name but operate on the renamed fields under the hood.
 
 ## Buy / sell (AMM, post-graduation)
 
