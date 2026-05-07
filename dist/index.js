@@ -1,0 +1,3718 @@
+import { encodeFunctionData, maxUint256, keccak256, encodeAbiParameters, createPublicClient, http } from 'viem';
+import { Program, AnchorProvider, EventParser, BN } from '@coral-xyz/anchor';
+import { PublicKey, ComputeBudgetProgram, SystemProgram, Transaction } from '@solana/web3.js';
+import { NATIVE_MINT, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, createAssociatedTokenAccountIdempotentInstruction, createSyncNativeInstruction, createCloseAccountInstruction, getMint, ASSOCIATED_TOKEN_PROGRAM_ID, createAssociatedTokenAccountInstruction, createTransferCheckedInstruction } from '@solana/spl-token';
+import { z } from 'zod';
+
+var __defProp = Object.defineProperty;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+
+// src/chains.ts
+function getChain(chainId) {
+  const chain = EVM_CHAINS2[chainId];
+  if (!chain) throw new Error(`Unsupported chain: ${chainId}`);
+  return chain;
+}
+var EVM_CHAINS2;
+var init_chains = __esm({
+  "src/chains.ts"() {
+    EVM_CHAINS2 = {
+      1: {
+        id: 1,
+        name: "Ethereum",
+        rpcUrl: "https://eth.llamarpc.com",
+        blockExplorer: "https://etherscan.io",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        moonpayNetwork: "eth"
+      },
+      8453: {
+        id: 8453,
+        name: "Base",
+        rpcUrl: "https://mainnet.base.org",
+        blockExplorer: "https://basescan.org",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+        moonpayNetwork: "base"
+      },
+      42161: {
+        id: 42161,
+        name: "Arbitrum One",
+        rpcUrl: "https://arb1.arbitrum.io/rpc",
+        blockExplorer: "https://arbiscan.io",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+        moonpayNetwork: "arbitrum"
+      },
+      137: {
+        id: 137,
+        name: "Polygon",
+        rpcUrl: "https://polygon-rpc.com",
+        blockExplorer: "https://polygonscan.com",
+        nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+        usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+        moonpayNetwork: "polygon"
+      },
+      56: {
+        id: 56,
+        name: "BNB Smart Chain",
+        rpcUrl: "https://bsc-dataseed.binance.org",
+        blockExplorer: "https://bscscan.com",
+        nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+        usdc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+        moonpayNetwork: "bsc"
+      },
+      43114: {
+        id: 43114,
+        name: "Avalanche",
+        rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+        blockExplorer: "https://snowtrace.io",
+        nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
+        usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+        moonpayNetwork: "avaxc"
+      }
+    };
+    Object.keys(EVM_CHAINS2).map(Number);
+  }
+});
+
+// src/constants.ts
+var PUMP_CROSSCHAIN_API, ERC20_ABI2, QUOTE_EXPIRY_BUFFER_SECONDS;
+var init_constants = __esm({
+  "src/constants.ts"() {
+    PUMP_CROSSCHAIN_API = "https://api.pump.fun/crosschain";
+    ERC20_ABI2 = [
+      {
+        name: "approve",
+        type: "function",
+        stateMutability: "nonpayable",
+        inputs: [
+          { name: "spender", type: "address" },
+          { name: "amount", type: "uint256" }
+        ],
+        outputs: [{ name: "", type: "bool" }]
+      },
+      {
+        name: "allowance",
+        type: "function",
+        stateMutability: "view",
+        inputs: [
+          { name: "owner", type: "address" },
+          { name: "spender", type: "address" }
+        ],
+        outputs: [{ name: "", type: "uint256" }]
+      },
+      {
+        name: "balanceOf",
+        type: "function",
+        stateMutability: "view",
+        inputs: [{ name: "account", type: "address" }],
+        outputs: [{ name: "", type: "uint256" }]
+      }
+    ];
+    QUOTE_EXPIRY_BUFFER_SECONDS = 30;
+  }
+});
+
+// src/evm/quote.ts
+var quote_exports = {};
+__export(quote_exports, {
+  assertQuoteValid: () => assertQuoteValid,
+  getQuote: () => getQuote,
+  getTokenUsdPrice: () => getTokenUsdPrice
+});
+async function getQuote(request, apiKey) {
+  const chain = getChain(request.fromChainId);
+  const fromTokenAddr = request.fromToken === "native" ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" : request.fromToken;
+  const params = new URLSearchParams({
+    fromChainId: String(request.fromChainId),
+    fromToken: fromTokenAddr,
+    fromAmount: String(request.fromAmount),
+    toNetwork: "solana",
+    toToken: "usdc",
+    agentMint: request.agentMint,
+    fromNetwork: chain.moonpayNetwork
+  });
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  const res = await fetch(`${PUMP_CROSSCHAIN_API}/quote?${params}`, { headers });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Quote request failed (${res.status}): ${body}`);
+  }
+  const data = await res.json();
+  return {
+    fromChainId: request.fromChainId,
+    fromToken: request.fromToken,
+    fromAmount: BigInt(data.fromAmount),
+    toAmountUsdc: BigInt(data.toAmountUsdc),
+    estimatedUsd: data.estimatedUsd,
+    bridgeFeeUsd: data.bridgeFeeUsd,
+    estimatedTimeSeconds: data.estimatedTimeSeconds,
+    quoteId: data.quoteId,
+    expiresAt: data.expiresAt
+  };
+}
+function assertQuoteValid(quote) {
+  const nowSeconds = Math.floor(Date.now() / 1e3);
+  if (nowSeconds >= quote.expiresAt - QUOTE_EXPIRY_BUFFER_SECONDS) {
+    throw new Error(
+      `Quote ${quote.quoteId} has expired. Fetch a new quote before submitting.`
+    );
+  }
+}
+async function getTokenUsdPrice(chainId, tokenAddress) {
+  const chain = getChain(chainId);
+  const addr = tokenAddress === "native" ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" : tokenAddress;
+  const res = await fetch(
+    `${PUMP_CROSSCHAIN_API}/price?network=${chain.moonpayNetwork}&token=${addr}`
+  );
+  if (!res.ok) throw new Error(`Price fetch failed (${res.status})`);
+  const data = await res.json();
+  return data.usdPrice;
+}
+var init_quote = __esm({
+  "src/evm/quote.ts"() {
+    init_chains();
+    init_constants();
+  }
+});
+
+// src/evm/transaction.ts
+var transaction_exports = {};
+__export(transaction_exports, {
+  buildEvmPaymentTransaction: () => buildEvmPaymentTransaction,
+  checkAllowance: () => checkAllowance
+});
+async function buildEvmPaymentTransaction(params, apiKey) {
+  assertQuoteValid(params.quote);
+  getChain(params.quote.fromChainId);
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers["x-api-key"] = apiKey;
+  const res = await fetch(`${PUMP_CROSSCHAIN_API}/build-tx`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      quoteId: params.quote.quoteId,
+      fromChainId: params.quote.fromChainId,
+      fromToken: params.quote.fromToken === "native" ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE" : params.quote.fromToken,
+      fromAmount: params.quote.fromAmount.toString(),
+      sender: params.sender,
+      agentMint: params.agentMint,
+      destinationSolanaWallet: params.destinationSolanaWallet,
+      memo: params.memo
+    })
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Bridge tx build failed (${res.status}): ${body}`);
+  }
+  const data = await res.json();
+  const bridge = {
+    to: data.to,
+    data: data.data,
+    value: BigInt(data.value),
+    chainId: params.quote.fromChainId
+  };
+  if (params.quote.fromToken !== "native" && data.approvalSpender) {
+    const approvalData = encodeFunctionData({
+      abi: ERC20_ABI2,
+      functionName: "approve",
+      args: [data.approvalSpender, maxUint256]
+    });
+    return {
+      approval: {
+        to: params.quote.fromToken,
+        data: approvalData,
+        value: 0n
+      },
+      bridge
+    };
+  }
+  return { bridge };
+}
+async function checkAllowance(tokenAddress, owner, spender, amount, rpcUrl) {
+  const body = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "eth_call",
+    params: [
+      {
+        to: tokenAddress,
+        data: encodeFunctionData({
+          abi: ERC20_ABI2,
+          functionName: "allowance",
+          args: [owner, spender]
+        })
+      },
+      "latest"
+    ]
+  };
+  const res = await fetch(rpcUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const json = await res.json();
+  const allowance = BigInt(json.result);
+  return allowance >= amount;
+}
+var init_transaction = __esm({
+  "src/evm/transaction.ts"() {
+    init_chains();
+    init_constants();
+    init_quote();
+  }
+});
+
+// src/solana/index.ts
+var solana_exports = {};
+__export(solana_exports, {
+  BONDING_CURVE_SEED: () => BONDING_CURVE_SEED,
+  BUYBACK_AUTHORITY_SEED: () => BUYBACK_AUTHORITY_SEED,
+  GLOBAL_CONFIG_SEED: () => GLOBAL_CONFIG_SEED,
+  INVOICE_ID_SEED: () => INVOICE_ID_SEED,
+  OFFLINE_PUMP_PROGRAM: () => OFFLINE_PUMP_PROGRAM,
+  PAYMENT_IN_CURRENCY_SEED: () => PAYMENT_IN_CURRENCY_SEED,
+  PROGRAM_ID: () => PROGRAM_ID,
+  PUMP_AGENT_PAYMENTS_PROGRAM_ID: () => PUMP_AGENT_PAYMENTS_PROGRAM_ID,
+  PUMP_FEES_PROGRAM_ID: () => PUMP_FEES_PROGRAM_ID,
+  PUMP_PROGRAM_ID: () => PUMP_PROGRAM_ID,
+  PumpAgent: () => PumpAgent,
+  PumpAgentOffline: () => PumpAgentOffline,
+  PumpAgentPaymentsPlugin: () => PumpAgentPaymentsPlugin,
+  SHARING_CONFIG_SEED: () => SHARING_CONFIG_SEED,
+  TOKEN_AGENT_PAYMENTS_MIN_RENT_EXEMPT_LAMPORTS: () => TOKEN_AGENT_PAYMENTS_MIN_RENT_EXEMPT_LAMPORTS,
+  TOKEN_AGENT_PAYMENTS_SEED: () => TOKEN_AGENT_PAYMENTS_SEED,
+  WITHDRAW_AUTHORITY_SEED: () => WITHDRAW_AUTHORITY_SEED,
+  createEventParser: () => createEventParser,
+  decodeGlobalConfig: () => decodeGlobalConfig,
+  decodeTokenAgentPaymentInCurrency: () => decodeTokenAgentPaymentInCurrency,
+  decodeTokenAgentPayments: () => decodeTokenAgentPayments,
+  getBondingCurvePDA: () => getBondingCurvePDA,
+  getBuybackAuthorityPDA: () => getBuybackAuthorityPDA,
+  getGlobalConfigPDA: () => getGlobalConfigPDA,
+  getInvoiceIdPDA: () => getInvoiceIdPDA,
+  getOfflineProgram: () => getOfflineProgram,
+  getPaymentInCurrencyPDA: () => getPaymentInCurrencyPDA,
+  getProgram: () => getProgram,
+  getPumpProgram: () => getPumpProgram,
+  getPumpProgramWithFallback: () => getPumpProgramWithFallback,
+  getSharingConfigPDA: () => getSharingConfigPDA,
+  getTokenAgentPaymentsPDA: () => getTokenAgentPaymentsPDA,
+  getWithdrawAuthorityPDA: () => getWithdrawAuthorityPDA,
+  parseAgentEvents: () => parseAgentEvents,
+  subscribeToAgentEvents: () => subscribeToAgentEvents,
+  x402: () => x402_exports
+});
+
+// src/solana/idl/pump_agent_payments.json
+var pump_agent_payments_default = {
+  address: "AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7",
+  metadata: {
+    name: "pump_agent_payments",
+    version: "0.1.0",
+    spec: "0.1.0",
+    description: "Created with Anchor"
+  },
+  instructions: [
+    {
+      name: "agent_accept_payment",
+      discriminator: [34, 157, 64, 220, 74, 32, 48, 225],
+      accounts: [
+        { name: "user", writable: true, signer: true },
+        { name: "user_token_account", writable: true },
+        { name: "token_agent_payments" },
+        {
+          name: "token_agent_associated_account",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "token_agent_payments" },
+              {
+                kind: "const",
+                value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169]
+              },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        {
+          name: "token_agent_payment_in_currency",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [112, 97, 121, 109, 101, 110, 116, 45, 105, 110, 45, 99, 117, 114, 114, 101, 110, 99, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" },
+              { kind: "account", path: "currency_mint" }
+            ]
+          }
+        },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "invoice_id" },
+        { name: "currency_mint" },
+        { name: "token_program" },
+        { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "amount", type: "u64" },
+        { name: "memo", type: "u64" },
+        { name: "start_time", type: "i64" },
+        { name: "end_time", type: "i64" }
+      ]
+    },
+    {
+      name: "agent_buyback_trigger",
+      discriminator: [95, 231, 193, 2, 245, 75, 125, 155],
+      accounts: [
+        { name: "global_buyback_authority", writable: true, signer: true },
+        { name: "mint", writable: true },
+        {
+          name: "token_agent_payments",
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 111, 107, 101, 110, 45, 97, 103, 101, 110, 116, 45, 112, 97, 121, 109, 101, 110, 116, 115] },
+              { kind: "account", path: "mint" }
+            ]
+          }
+        },
+        {
+          name: "token_agent_payment_in_currency",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [112, 97, 121, 109, 101, 110, 116, 45, 105, 110, 45, 99, 117, 114, 114, 101, 110, 99, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" },
+              { kind: "account", path: "currency_mint" }
+            ]
+          }
+        },
+        { name: "currency_mint" },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "swap_program_to_invoke" },
+        {
+          name: "burn_authority",
+          docs: ["Intentionally called burn_authority", "TO avoid any confusion with the global buyback authority."],
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [98, 117, 121, 98, 97, 99, 107, 45, 97, 117, 116, 104, 111, 114, 105, 116, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" }
+            ]
+          }
+        },
+        {
+          name: "burn_mint_vault",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "burn_authority" },
+              { kind: "account", path: "token_program" },
+              { kind: "account", path: "mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        {
+          name: "burn_currency_mint_vault",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "burn_authority" },
+              { kind: "account", path: "token_program_currency" },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        { name: "token_program" },
+        { name: "token_program_currency" },
+        { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "swap_instruction_data", type: "bytes" }
+      ]
+    },
+    {
+      name: "agent_distribute_payments",
+      discriminator: [145, 44, 246, 47, 192, 204, 95, 32],
+      accounts: [
+        { name: "user", writable: true, signer: true },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "currency_mint" },
+        { name: "token_agent_payments", writable: true },
+        {
+          name: "token_agent_payment_in_currency",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [112, 97, 121, 109, 101, 110, 116, 45, 105, 110, 45, 99, 117, 114, 114, 101, 110, 99, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" },
+              { kind: "account", path: "currency_mint" }
+            ]
+          }
+        },
+        {
+          name: "token_agent_associated_account",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "token_agent_payments" },
+              { kind: "const", value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169] },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        {
+          name: "buyback_authority",
+          pda: {
+            seeds: [
+              { kind: "const", value: [98, 117, 121, 98, 97, 99, 107, 45, 97, 117, 116, 104, 111, 114, 105, 116, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" }
+            ]
+          }
+        },
+        {
+          name: "withdraw_authority",
+          pda: {
+            seeds: [
+              { kind: "const", value: [119, 105, 116, 104, 100, 114, 97, 119, 45, 97, 117, 116, 104, 111, 114, 105, 116, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" }
+            ]
+          }
+        },
+        {
+          name: "buyback_vault",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "buyback_authority" },
+              { kind: "const", value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169] },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        {
+          name: "withdraw_vault",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "withdraw_authority" },
+              { kind: "const", value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169] },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        { name: "token_program" },
+        { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: []
+    },
+    {
+      name: "agent_initialize",
+      discriminator: [180, 248, 163, 8, 49, 94, 126, 96],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "bonding_curve",
+          pda: {
+            seeds: [
+              { kind: "const", value: [98, 111, 110, 100, 105, 110, 103, 45, 99, 117, 114, 118, 101] },
+              { kind: "account", path: "mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [1, 86, 224, 246, 147, 102, 90, 207, 68, 219, 21, 104, 191, 23, 91, 170, 81, 137, 203, 151, 245, 210, 255, 59, 101, 93, 43, 182, 253, 109, 24, 176]
+            }
+          }
+        },
+        {
+          name: "global_config",
+          writable: true,
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "mint" },
+        {
+          name: "token_agent_payments",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 111, 107, 101, 110, 45, 97, 103, 101, 110, 116, 45, 112, 97, 121, 109, 101, 110, 116, 115] },
+              { kind: "account", path: "mint" }
+            ]
+          }
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "authority", type: "pubkey" },
+        { name: "buyback_bps", type: "u16" }
+      ]
+    },
+    {
+      name: "agent_transfer_extra_lamports",
+      discriminator: [39, 206, 214, 167, 55, 44, 221, 81],
+      accounts: [
+        {
+          name: "token_agent_payments",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "const", value: [116, 111, 107, 101, 110, 45, 97, 103, 101, 110, 116, 45, 112, 97, 121, 109, 101, 110, 116, 115] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" }
+            ]
+          }
+        },
+        {
+          name: "token_agent_associated_account",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "token_agent_payments" },
+              { kind: "const", value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169] },
+              { kind: "const", value: [6, 155, 136, 87, 254, 171, 129, 132, 251, 104, 127, 99, 70, 24, 192, 53, 218, 196, 57, 220, 26, 235, 59, 85, 152, 160, 240, 0, 0, 0, 0, 1] }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        }
+      ],
+      args: []
+    },
+    {
+      name: "agent_update_authority",
+      discriminator: [237, 228, 227, 224, 226, 198, 167, 83],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "token_agent_payments", writable: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "new_authority", type: "pubkey" }
+      ]
+    },
+    {
+      name: "agent_update_buyback_bps",
+      discriminator: [41, 28, 118, 90, 53, 24, 63, 160],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        { name: "token_agent_payments", writable: true },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "buyback_bps", type: "u16" }
+      ]
+    },
+    {
+      name: "agent_withdraw",
+      discriminator: [13, 149, 99, 245, 171, 171, 185, 53],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        { name: "token_agent_payments" },
+        { name: "currency_mint" },
+        {
+          name: "withdraw_authority",
+          pda: {
+            seeds: [
+              { kind: "const", value: [119, 105, 116, 104, 100, 114, 97, 119, 45, 97, 117, 116, 104, 111, 114, 105, 116, 121] },
+              { kind: "account", path: "token_agent_payments.mint", account: "TokenAgentPayments" }
+            ]
+          }
+        },
+        {
+          name: "withdraw_vault",
+          writable: true,
+          pda: {
+            seeds: [
+              { kind: "account", path: "withdraw_authority" },
+              { kind: "const", value: [6, 221, 246, 225, 215, 101, 161, 147, 217, 203, 225, 70, 206, 235, 121, 172, 28, 180, 133, 237, 95, 91, 55, 145, 58, 140, 245, 133, 126, 255, 0, 169] },
+              { kind: "account", path: "currency_mint" }
+            ],
+            program: {
+              kind: "const",
+              value: [140, 151, 37, 143, 78, 36, 137, 241, 187, 61, 16, 41, 20, 142, 13, 131, 11, 90, 19, 153, 218, 255, 16, 132, 4, 142, 123, 216, 219, 233, 248, 89]
+            }
+          }
+        },
+        { name: "receiver_ata", writable: true },
+        { name: "token_program" },
+        { name: "associated_token_program", address: "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL" },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: []
+    },
+    {
+      name: "close_account",
+      discriminator: [125, 255, 149, 14, 110, 34, 72, 24],
+      accounts: [
+        { name: "account", writable: true },
+        { name: "user", writable: true, signer: true },
+        {
+          name: "global_config",
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" }
+      ],
+      args: []
+    },
+    {
+      name: "extend_account",
+      discriminator: [234, 102, 194, 203, 150, 72, 62, 229],
+      accounts: [
+        { name: "account", writable: true },
+        { name: "user", writable: true, signer: true },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: []
+    },
+    {
+      name: "global_add_new_currency",
+      discriminator: [46, 135, 47, 120, 118, 204, 177, 224],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "global_config",
+          writable: true,
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "mint" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: []
+    },
+    {
+      name: "global_config_initialize",
+      discriminator: [61, 23, 208, 192, 232, 52, 8, 66],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "global_config",
+          writable: true,
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        { name: "system_program", address: "11111111111111111111111111111111" },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "protocol_authority", type: "pubkey" },
+        { name: "buyback_authority", type: "pubkey" }
+      ]
+    },
+    {
+      name: "global_remove_currency",
+      discriminator: [57, 226, 180, 140, 91, 14, 231, 196],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "global_config",
+          writable: true,
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "index", type: "u8" }
+      ]
+    },
+    {
+      name: "global_update_authorities",
+      discriminator: [91, 137, 72, 77, 183, 184, 168, 125],
+      accounts: [
+        { name: "authority", writable: true, signer: true },
+        {
+          name: "global_config",
+          writable: true,
+          pda: { seeds: [{ kind: "const", value: [103, 108, 111, 98, 97, 108, 45, 99, 111, 110, 102, 105, 103] }] }
+        },
+        {
+          name: "event_authority",
+          pda: { seeds: [{ kind: "const", value: [95, 95, 101, 118, 101, 110, 116, 95, 97, 117, 116, 104, 111, 114, 105, 116, 121] }] }
+        },
+        { name: "program" }
+      ],
+      args: [
+        { name: "protocol_authority", type: { option: "pubkey" } },
+        { name: "buyback_authority", type: { option: "pubkey" } }
+      ]
+    }
+  ],
+  accounts: [
+    { name: "BondingCurve", discriminator: [23, 183, 248, 55, 96, 216, 172, 96] },
+    { name: "GlobalConfig", discriminator: [149, 8, 156, 202, 160, 252, 176, 217] },
+    { name: "TokenAgentPaymentInCurrency", discriminator: [225, 195, 81, 227, 115, 43, 25, 177] },
+    { name: "TokenAgentPayments", discriminator: [136, 241, 242, 217, 173, 77, 112, 186] }
+  ],
+  events: [
+    { name: "AgentAcceptPaymentEvent", discriminator: [114, 190, 188, 192, 105, 79, 41, 147] },
+    { name: "AgentBuybackTriggerEvent", discriminator: [139, 240, 9, 225, 214, 63, 232, 165] },
+    { name: "AgentDistributePaymentsEvent", discriminator: [137, 116, 114, 140, 54, 111, 230, 26] },
+    { name: "AgentInitializeEvent", discriminator: [192, 5, 183, 151, 0, 64, 100, 207] },
+    { name: "AgentUpdateAuthorityEvent", discriminator: [36, 212, 117, 235, 74, 166, 60, 16] },
+    { name: "AgentUpdateBuybackBpsEvent", discriminator: [165, 251, 40, 19, 114, 26, 128, 232] },
+    { name: "AgentWithdrawEvent", discriminator: [174, 231, 201, 69, 254, 183, 49, 85] },
+    { name: "ExtendAccountEvent", discriminator: [97, 97, 215, 144, 93, 146, 22, 124] },
+    { name: "GlobalAddNewCurrencyEvent", discriminator: [130, 202, 37, 248, 241, 182, 233, 35] },
+    { name: "GlobalConfigInitializeEvent", discriminator: [241, 51, 222, 190, 142, 245, 176, 53] },
+    { name: "GlobalUpdateAuthoritiesEvent", discriminator: [82, 27, 22, 232, 53, 66, 35, 207] }
+  ],
+  errors: [
+    { code: 6e3, name: "UnauthorizedSigner", msg: "The given account is not authorized to execute this instruction." },
+    { code: 6001, name: "CurrencyAlreadySupported", msg: "The given currency is already supported." },
+    { code: 6002, name: "MaxCurrenciesReached", msg: "The maximum number of currencies has been reached." },
+    { code: 6003, name: "InvalidBuybackBps", msg: "The buyback basis points is greater than 10000." },
+    { code: 6004, name: "CurrencyNotSupported", msg: "The given currency is not supported." },
+    { code: 6005, name: "MathOverflow", msg: "Math overflow." },
+    { code: 6006, name: "InvalidRemainingAccountAddress", msg: "The given remaining account address is invalid." },
+    { code: 6007, name: "PaymentVaultNotEmpty", msg: "The payment vault is not empty. Distribute the payments first." },
+    { code: 6008, name: "InvalidInvoiceAccount", msg: "The invoice account does not match the expected PDA seeds" },
+    { code: 6009, name: "InvalidProgramToInvoke", msg: "The program to invoke is not allowed." },
+    { code: 6010, name: "InvalidCallbackProgram", msg: "The callback program is invalid." },
+    { code: 6011, name: "SwapFailedAmountDidNotIncrease", msg: "The swap failed and the amount did not increase." },
+    { code: 6012, name: "AccountTypeNotSupported", msg: "The account type is not supported for extension." },
+    { code: 6013, name: "InvalidIndex", msg: "The index is invalid." }
+  ],
+  types: [
+    {
+      name: "AgentAcceptPaymentEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "user", type: "pubkey" },
+          { name: "tokenized_agent_mint", type: "pubkey" },
+          { name: "token_agent_payments", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "amount", type: "u64" },
+          { name: "memo", type: "u64" },
+          { name: "start_time", type: "i64" },
+          { name: "end_time", type: "i64" },
+          { name: "invoice_id", type: "pubkey" },
+          { name: "agent_post_balance", type: "u64" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "AgentBuybackTriggerEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "tokenized_agent_mint", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "amount_burned", type: "u64" },
+          { name: "swap_program", type: "pubkey" },
+          { name: "new_tokens_bought_and_burned_for_currency", type: "u64" },
+          { name: "agent_post_balance", type: "u64" },
+          { name: "timestamp", type: "i64" },
+          { name: "currency_mint_amount_for_buyback", type: "u64" }
+        ]
+      }
+    },
+    {
+      name: "AgentDistributePaymentsEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "token_agent_payments", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "buyback_bps", type: "u16" },
+          { name: "buyback_amount", type: "u64" },
+          { name: "withdraw_amount", type: "u64" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "AgentInitializeEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "token_agent_payments", type: "pubkey" },
+          { name: "mint", type: "pubkey" },
+          { name: "authority", type: "pubkey" },
+          { name: "buyback_bps", type: "u16" },
+          { name: "timestamp", type: "i64" },
+          { name: "tokenized_agent_sequence", type: "u64" }
+        ]
+      }
+    },
+    {
+      name: "AgentUpdateAuthorityEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "token_agent_payments", type: "pubkey" },
+          { name: "old_authority", type: "pubkey" },
+          { name: "new_authority", type: "pubkey" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "AgentUpdateBuybackBpsEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "token_agent_payments", type: "pubkey" },
+          { name: "mint", type: "pubkey" },
+          { name: "old_buyback_bps", type: "u16" },
+          { name: "new_buyback_bps", type: "u16" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "AgentWithdrawEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "tokenized_agent_mint", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "amount", type: "u64" },
+          { name: "receiver", type: "pubkey" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "BondingCurve",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "virtual_token_reserves", type: "u64" },
+          { name: "virtual_sol_reserves", type: "u64" },
+          { name: "real_token_reserves", type: "u64" },
+          { name: "real_sol_reserves", type: "u64" },
+          { name: "token_total_supply", type: "u64" },
+          { name: "complete", type: "bool" },
+          { name: "creator", type: "pubkey" },
+          { name: "is_mayhem_mode", type: "bool" }
+        ]
+      }
+    },
+    {
+      name: "ExtendAccountEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "account", type: "pubkey" },
+          { name: "user", type: "pubkey" },
+          { name: "current_size", type: "u64" },
+          { name: "new_size", type: "u64" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "GlobalAddNewCurrencyEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "global_config", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "GlobalConfig",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "bump", type: "u8" },
+          { name: "protocol_authority", type: "pubkey" },
+          { name: "buyback_authority", type: "pubkey" },
+          { name: "supported_currencies_mint", type: { array: ["pubkey", 10] } },
+          { name: "tokenized_agent_sequence", type: "u64" }
+        ]
+      }
+    },
+    {
+      name: "GlobalConfigInitializeEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "global_config", type: "pubkey" },
+          { name: "protocol_authority", type: "pubkey" },
+          { name: "buyback_authority", type: "pubkey" },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "GlobalUpdateAuthoritiesEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "global_config", type: "pubkey" },
+          { name: "protocol_authority", type: { option: "pubkey" } },
+          { name: "buyback_authority", type: { option: "pubkey" } },
+          { name: "timestamp", type: "i64" }
+        ]
+      }
+    },
+    {
+      name: "TokenAgentPaymentInCurrency",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "mint", type: "pubkey" },
+          { name: "currency_mint", type: "pubkey" },
+          { name: "total_invoice_payments_made", type: "u64" },
+          { name: "total_buyback", type: "u64" },
+          { name: "total_withdrawals", type: "u64" },
+          { name: "tokens_bought_back_and_burned", type: "u64" }
+        ]
+      }
+    },
+    {
+      name: "TokenAgentPayments",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "bump", type: "u8" },
+          { name: "mint", type: "pubkey" },
+          { name: "authority", type: "pubkey" },
+          { name: "buyback_bps", type: "u16" }
+        ]
+      }
+    }
+  ]
+};
+
+// src/solana/program.ts
+function getPumpProgram(connection) {
+  const dummyWallet = {
+    publicKey: PublicKey.default,
+    signTransaction: () => Promise.reject(),
+    signAllTransactions: () => Promise.reject()
+  };
+  return new Program(
+    pump_agent_payments_default,
+    new AnchorProvider(connection, dummyWallet, {})
+  );
+}
+var OFFLINE_PUMP_PROGRAM = getPumpProgram(null);
+function getPumpProgramWithFallback(connection) {
+  return connection ? getPumpProgram(connection) : OFFLINE_PUMP_PROGRAM;
+}
+function getOfflineProgram() {
+  return OFFLINE_PUMP_PROGRAM;
+}
+var PROGRAM_ID = new PublicKey(
+  "AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7"
+);
+var PUMP_PROGRAM_ID = new PublicKey(
+  "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"
+);
+var PUMP_FEES_PROGRAM_ID = new PublicKey(
+  "pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"
+);
+var GLOBAL_CONFIG_SEED = Buffer.from("global-config");
+var TOKEN_AGENT_PAYMENTS_SEED = Buffer.from("token-agent-payments");
+var PAYMENT_IN_CURRENCY_SEED = Buffer.from("payment-in-currency");
+var INVOICE_ID_SEED = Buffer.from("invoice-id");
+var BUYBACK_AUTHORITY_SEED = Buffer.from("buyback-authority");
+var WITHDRAW_AUTHORITY_SEED = Buffer.from("withdraw-authority");
+var BONDING_CURVE_SEED = Buffer.from("bonding-curve");
+var SHARING_CONFIG_SEED = Buffer.from("sharing-config");
+var TOKEN_AGENT_PAYMENTS_MIN_RENT_EXEMPT_LAMPORTS = 1412880;
+function getGlobalConfigPDA() {
+  return PublicKey.findProgramAddressSync([GLOBAL_CONFIG_SEED], PROGRAM_ID);
+}
+function getTokenAgentPaymentsPDA(mint) {
+  return PublicKey.findProgramAddressSync(
+    [TOKEN_AGENT_PAYMENTS_SEED, mint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+function getPaymentInCurrencyPDA(tokenMint, currencyMint) {
+  return PublicKey.findProgramAddressSync(
+    [PAYMENT_IN_CURRENCY_SEED, tokenMint.toBuffer(), currencyMint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+function getInvoiceIdPDA(tokenMint, currencyMint, amount, memo, startTime, endTime) {
+  return PublicKey.findProgramAddressSync(
+    [
+      INVOICE_ID_SEED,
+      tokenMint.toBuffer(),
+      currencyMint.toBuffer(),
+      amount.toArrayLike(Buffer, "le", 8),
+      memo.toArrayLike(Buffer, "le", 8),
+      startTime.toArrayLike(Buffer, "le", 8),
+      endTime.toArrayLike(Buffer, "le", 8)
+    ],
+    PROGRAM_ID
+  );
+}
+function getBuybackAuthorityPDA(tokenMint) {
+  return PublicKey.findProgramAddressSync(
+    [BUYBACK_AUTHORITY_SEED, tokenMint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+function getWithdrawAuthorityPDA(tokenMint) {
+  return PublicKey.findProgramAddressSync(
+    [WITHDRAW_AUTHORITY_SEED, tokenMint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+function getBondingCurvePDA(mint) {
+  return PublicKey.findProgramAddressSync(
+    [BONDING_CURVE_SEED, mint.toBuffer()],
+    PUMP_PROGRAM_ID
+  );
+}
+function getSharingConfigPDA(mint) {
+  return PublicKey.findProgramAddressSync(
+    [SHARING_CONFIG_SEED, mint.toBuffer()],
+    PROGRAM_ID
+  );
+}
+function toBN(value) {
+  return new BN(value.toString());
+}
+var PumpAgentOffline = class _PumpAgentOffline {
+  mint;
+  program;
+  static DEFAULT_COMPUTE_UNIT_LIMIT_FOR_AGENT_PAYMENTS = 1e5;
+  static DEFAULT_PRIORITY_FEE_MICRO_LAMPORTS = 1e3;
+  constructor(mint, program = getPumpProgramWithFallback()) {
+    this.mint = mint;
+    this.program = program;
+  }
+  static load(mint, connection) {
+    return new _PumpAgentOffline(mint, getPumpProgramWithFallback(connection));
+  }
+  async create(params) {
+    const { authority, mint, agentAuthority, buybackBps } = params;
+    const [bondingCurve] = getBondingCurvePDA(mint);
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(mint);
+    return this.program.methods.agentInitialize(agentAuthority, buybackBps).accountsPartial({
+      authority,
+      bondingCurve,
+      mint,
+      tokenAgentPayments
+    }).instruction();
+  }
+  async withdraw(params) {
+    const { authority, currencyMint, receiverAta, tokenProgram } = params;
+    const tp = tokenProgram ?? TOKEN_PROGRAM_ID;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [withdrawAuthority] = getWithdrawAuthorityPDA(this.mint);
+    const withdrawVault = getAssociatedTokenAddressSync(
+      currencyMint,
+      withdrawAuthority,
+      true,
+      tp
+    );
+    return this.program.methods.agentWithdraw().accountsPartial({
+      authority,
+      tokenAgentPayments,
+      currencyMint,
+      withdrawAuthority,
+      withdrawVault,
+      receiverAta,
+      tokenProgram: tp
+    }).instruction();
+  }
+  async updateBuybackBps(params, options) {
+    const { authority, buybackBps } = params;
+    const supportedCurrencies = options.supportedCurrencies;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [globalConfig] = getGlobalConfigPDA();
+    const remainingAccounts = [];
+    for (const currency of supportedCurrencies) {
+      if (currency.mint.equals(PublicKey.default)) continue;
+      const ata = getAssociatedTokenAddressSync(
+        currency.mint,
+        tokenAgentPayments,
+        true,
+        currency.tokenProgram
+      );
+      remainingAccounts.push({
+        pubkey: ata,
+        isWritable: false,
+        isSigner: false
+      });
+    }
+    return this.program.methods.agentUpdateBuybackBps(buybackBps).accountsPartial({
+      authority,
+      tokenAgentPayments,
+      globalConfig
+    }).remainingAccounts(remainingAccounts).instruction();
+  }
+  async acceptPayment(params) {
+    const {
+      user,
+      userTokenAccount,
+      currencyMint,
+      amount,
+      memo,
+      startTime,
+      endTime,
+      tokenProgram
+    } = params;
+    const tp = tokenProgram ?? TOKEN_PROGRAM_ID;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [globalConfig] = getGlobalConfigPDA();
+    const [paymentInCurrency] = getPaymentInCurrencyPDA(
+      this.mint,
+      currencyMint
+    );
+    const [invoiceId] = getInvoiceIdPDA(
+      this.mint,
+      currencyMint,
+      amount,
+      memo,
+      startTime,
+      endTime
+    );
+    const tokenAgentAssociatedAccount = getAssociatedTokenAddressSync(
+      currencyMint,
+      tokenAgentPayments,
+      true,
+      tp
+    );
+    return this.program.methods.agentAcceptPayment(amount, memo, startTime, endTime).accountsPartial({
+      user,
+      userTokenAccount,
+      tokenAgentPayments,
+      tokenAgentAssociatedAccount,
+      tokenAgentPaymentInCurrency: paymentInCurrency,
+      globalConfig,
+      invoiceId,
+      currencyMint,
+      tokenProgram: tp
+    }).instruction();
+  }
+  async buildAcceptPaymentInstructions(params) {
+    const { user, currencyMint } = params;
+    const computeUnitLimit = params.computeUnitLimit ?? _PumpAgentOffline.DEFAULT_COMPUTE_UNIT_LIMIT_FOR_AGENT_PAYMENTS;
+    const tp = params.tokenProgram ?? TOKEN_PROGRAM_ID;
+    const userTokenAccount = getAssociatedTokenAddressSync(
+      currencyMint,
+      user,
+      false,
+      tp
+    );
+    const acceptIx = await this.acceptPayment({
+      user,
+      userTokenAccount,
+      currencyMint,
+      amount: toBN(params.amount),
+      memo: toBN(params.memo),
+      startTime: toBN(params.startTime),
+      endTime: toBN(params.endTime),
+      tokenProgram: params.tokenProgram
+    });
+    const ixs = [
+      ComputeBudgetProgram.setComputeUnitLimit({ units: computeUnitLimit })
+    ];
+    if (params.computeUnitPrice != null) {
+      ixs.push(
+        ComputeBudgetProgram.setComputeUnitPrice({
+          microLamports: params.computeUnitPrice
+        })
+      );
+    }
+    if (currencyMint.equals(NATIVE_MINT)) {
+      return [
+        ...ixs,
+        createAssociatedTokenAccountIdempotentInstruction(
+          user,
+          userTokenAccount,
+          user,
+          NATIVE_MINT
+        ),
+        SystemProgram.transfer({
+          fromPubkey: user,
+          toPubkey: userTokenAccount,
+          lamports: BigInt(params.amount.toString())
+        }),
+        createSyncNativeInstruction(userTokenAccount),
+        acceptIx,
+        createCloseAccountInstruction(userTokenAccount, user, user)
+      ];
+    }
+    return [...ixs, acceptIx];
+  }
+  async distributePayments(params) {
+    const {
+      user,
+      currencyMint,
+      tokenProgram,
+      includeTransferExtraLamportsForNative = false
+    } = params;
+    const tp = tokenProgram ?? TOKEN_PROGRAM_ID;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [globalConfig] = getGlobalConfigPDA();
+    const [paymentInCurrency] = getPaymentInCurrencyPDA(
+      this.mint,
+      currencyMint
+    );
+    const [buybackAuthority] = getBuybackAuthorityPDA(this.mint);
+    const [withdrawAuthority] = getWithdrawAuthorityPDA(this.mint);
+    const tokenAgentAssociatedAccount = getAssociatedTokenAddressSync(
+      currencyMint,
+      tokenAgentPayments,
+      true,
+      tp
+    );
+    const buybackVault = getAssociatedTokenAddressSync(
+      currencyMint,
+      buybackAuthority,
+      true,
+      tp
+    );
+    const withdrawVault = getAssociatedTokenAddressSync(
+      currencyMint,
+      withdrawAuthority,
+      true,
+      tp
+    );
+    const distributeIx = await this.program.methods.agentDistributePayments().accountsPartial({
+      user,
+      globalConfig,
+      currencyMint,
+      tokenAgentPayments,
+      tokenAgentPaymentInCurrency: paymentInCurrency,
+      tokenAgentAssociatedAccount,
+      buybackAuthority,
+      withdrawAuthority,
+      buybackVault,
+      withdrawVault,
+      tokenProgram: tp
+    }).instruction();
+    if (includeTransferExtraLamportsForNative && currencyMint.equals(NATIVE_MINT)) {
+      const transferIx = await this.program.methods.agentTransferExtraLamports().accountsPartial({
+        tokenAgentPayments,
+        tokenAgentAssociatedAccount
+      }).instruction();
+      return [transferIx, distributeIx];
+    }
+    return [distributeIx];
+  }
+  async buybackTrigger(params) {
+    const {
+      globalBuybackAuthority,
+      currencyMint,
+      swapProgramToInvoke,
+      swapInstructionData,
+      remainingAccounts,
+      tokenProgramCurrency,
+      tokenProgram
+    } = params;
+    const tp = tokenProgram ?? TOKEN_PROGRAM_ID;
+    const tpCurrency = tokenProgramCurrency ?? TOKEN_PROGRAM_ID;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [globalConfig] = getGlobalConfigPDA();
+    const [buybackAuthority] = getBuybackAuthorityPDA(this.mint);
+    const [paymentInCurrency] = getPaymentInCurrencyPDA(
+      this.mint,
+      currencyMint
+    );
+    const burnMintVault = getAssociatedTokenAddressSync(
+      this.mint,
+      buybackAuthority,
+      true,
+      tp
+    );
+    const burnCurrencyMintVault = getAssociatedTokenAddressSync(
+      currencyMint,
+      buybackAuthority,
+      true,
+      tpCurrency
+    );
+    return this.program.methods.agentBuybackTrigger(swapInstructionData).accountsPartial({
+      globalBuybackAuthority,
+      mint: this.mint,
+      tokenAgentPayments,
+      tokenAgentPaymentInCurrency: paymentInCurrency,
+      currencyMint,
+      globalConfig,
+      swapProgramToInvoke,
+      burnAuthority: buybackAuthority,
+      burnMintVault,
+      burnCurrencyMintVault,
+      tokenProgram: tp,
+      tokenProgramCurrency: tpCurrency
+    }).remainingAccounts(remainingAccounts).instruction();
+  }
+  async extendAccount(params) {
+    const { account, user } = params;
+    return this.program.methods.extendAccount().accountsPartial({ account, user }).instruction();
+  }
+  async updateAuthority(params) {
+    const { authority, newAuthority } = params;
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    return this.program.methods.agentUpdateAuthority(newAuthority).accountsPartial({
+      authority,
+      tokenAgentPayments
+    }).instruction();
+  }
+  /**
+   * Returns the `close_account` instruction to close a program account
+   * and reclaim its rent-exempt lamports.
+   */
+  async closeAccount(params) {
+    const { account, user } = params;
+    const [globalConfig] = getGlobalConfigPDA();
+    return this.program.methods.closeAccount().accountsPartial({
+      account,
+      user,
+      globalConfig
+    }).instruction();
+  }
+};
+function createEventParser(connection) {
+  const program = connection ? getPumpProgramWithFallback(connection) : OFFLINE_PUMP_PROGRAM;
+  return new EventParser(program.programId, program.coder);
+}
+function parseAgentEvents(logs, connection) {
+  const parser = createEventParser(connection);
+  const events = [];
+  for (const event of parser.parseLogs(logs)) {
+    events.push({
+      name: event.name,
+      data: event.data
+    });
+  }
+  return events;
+}
+function subscribeToAgentEvents(connection, callback, options) {
+  const parser = createEventParser(connection);
+  const filterNames = options?.eventNames ? new Set(options.eventNames) : null;
+  const subId = connection.onLogs(
+    OFFLINE_PUMP_PROGRAM.programId,
+    (logInfo, ctx) => {
+      if (logInfo.err) return;
+      for (const event of parser.parseLogs(logInfo.logs)) {
+        const parsed = {
+          name: event.name,
+          data: event.data
+        };
+        if (filterNames && !filterNames.has(parsed.name)) continue;
+        callback(parsed, ctx.slot);
+      }
+    },
+    "confirmed"
+  );
+  return {
+    unsubscribe() {
+      connection.removeOnLogsListener(subId);
+    }
+  };
+}
+
+// src/solana/PumpAgent.ts
+var PumpAgent = class extends PumpAgentOffline {
+  connection;
+  environment;
+  constructor(mint, environment = "mainnet", connection) {
+    super(mint, getPumpProgramWithFallback(connection));
+    this.connection = connection;
+    this.environment = environment;
+  }
+  get blockchainClientBaseUrl() {
+    return this.environment === "devnet" ? "https://blockchain-client.internal.pump.fun" : "https://fun-block.pump.fun";
+  }
+  /**
+   * Fetches the current balances for all three vaults for a given currency.
+   * Returns the vault address and its token balance.
+   * If a vault ATA does not exist yet the balance is reported as 0n.
+   */
+  async getBalances(currencyMint, currencyTokenProgram = TOKEN_PROGRAM_ID) {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const [buybackAuthority] = getBuybackAuthorityPDA(this.mint);
+    const [withdrawAuthority] = getWithdrawAuthorityPDA(this.mint);
+    const paymentAta = getAssociatedTokenAddressSync(
+      currencyMint,
+      tokenAgentPayments,
+      true,
+      currencyTokenProgram
+    );
+    const buybackAta = getAssociatedTokenAddressSync(
+      currencyMint,
+      buybackAuthority,
+      true,
+      currencyTokenProgram
+    );
+    const withdrawAta = getAssociatedTokenAddressSync(
+      currencyMint,
+      withdrawAuthority,
+      true,
+      currencyTokenProgram
+    );
+    const fetchBalance = async (ata) => {
+      try {
+        const resp = await connection.getTokenAccountBalance(ata);
+        return BigInt(resp.value.amount);
+      } catch {
+        return 0n;
+      }
+    };
+    const [paymentBal, buybackBal, withdrawBal] = await Promise.all([
+      fetchBalance(paymentAta),
+      fetchBalance(buybackAta),
+      fetchBalance(withdrawAta)
+    ]);
+    return {
+      paymentVault: { address: paymentAta, balance: paymentBal },
+      buybackVault: { address: buybackAta, balance: buybackBal },
+      withdrawVault: { address: withdrawAta, balance: withdrawBal }
+    };
+  }
+  /**
+   * Returns the `agent_update_buyback_bps` instruction and auto-fetches
+   * supported currencies from GlobalConfig when options are omitted.
+   */
+  async updateBuybackBps(params) {
+    const { authority, buybackBps } = params;
+    const [globalConfigPda] = getGlobalConfigPDA();
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const globalConfigAccount = await this.program.account.GlobalConfig.fetch(globalConfigPda);
+    const mints = globalConfigAccount.supportedCurrenciesMint.filter(
+      (m) => !PublicKey.default.equals(m)
+    );
+    const accountInfos = await connection.getMultipleAccountsInfo(mints);
+    const supportedCurrencies = [];
+    for (const [idx, mint] of mints.entries()) {
+      const info = accountInfos[idx];
+      if (info) {
+        supportedCurrencies.push({ mint, tokenProgram: info.owner });
+      }
+    }
+    return super.updateBuybackBps(
+      { authority, buybackBps },
+      { supportedCurrencies }
+    );
+  }
+  // ─── Account Fetch Helpers ──────────────────────────────────────────────
+  /**
+   * Fetch the on-chain TokenAgentPayments config for this agent's mint.
+   * Returns the authority, buyback bps, and mint.
+   */
+  async getAgentConfig() {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [pda] = getTokenAgentPaymentsPDA(this.mint);
+    return this.program.account.TokenAgentPayments.fetch(pda);
+  }
+  /**
+   * Fetch the protocol-wide GlobalConfig account.
+   * Returns authorities and the list of supported currency mints.
+   */
+  async getGlobalConfig() {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [pda] = getGlobalConfigPDA();
+    return this.program.account.GlobalConfig.fetch(pda);
+  }
+  /**
+   * Fetch the per-currency accounting stats for this agent.
+   * Returns total payments, buybacks, withdrawals, and tokens burned.
+   */
+  async getPaymentStats(currencyMint) {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [pda] = getPaymentInCurrencyPDA(this.mint, currencyMint);
+    return this.program.account.TokenAgentPaymentInCurrency.fetch(pda);
+  }
+  /**
+   * Fetch the list of supported currency mints from GlobalConfig,
+   * filtered to only non-default (non-zero) entries.
+   */
+  async getSupportedCurrencies() {
+    const config = await this.getGlobalConfig();
+    return config.supportedCurrenciesMint.filter(
+      (m) => !PublicKey.default.equals(m)
+    );
+  }
+  /**
+   * Check whether the TokenAgentPayments account exists on-chain
+   * (i.e. whether this agent has been initialized).
+   */
+  async isInitialized() {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [pda] = getTokenAgentPaymentsPDA(this.mint);
+    const info = await connection.getAccountInfo(pda);
+    return info !== null;
+  }
+  // ─── Payment History ────────────────────────────────────────────────────
+  /**
+   * Fetch recent payment events for this agent by scanning on-chain
+   * transaction logs on the TokenAgentPayments PDA.
+   *
+   * @param limit - Maximum number of transactions to scan (default: 50)
+   * @returns Parsed `AgentAcceptPaymentEvent`s in reverse chronological order
+   */
+  async getPaymentHistory(limit = 50) {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const signatures = await connection.getSignaturesForAddress(
+      tokenAgentPayments,
+      { limit }
+    );
+    const payments = [];
+    for (const sig of signatures) {
+      if (sig.err) continue;
+      const tx = await connection.getTransaction(sig.signature, {
+        maxSupportedTransactionVersion: 0
+      });
+      if (!tx?.meta?.logMessages) continue;
+      const events = parseAgentEvents(tx.meta.logMessages, connection);
+      for (const event of events) {
+        if (event.name === "agentAcceptPaymentEvent") {
+          payments.push(event.data);
+        }
+      }
+    }
+    return payments;
+  }
+  /**
+   * Fetch all recent events for this agent (payments, distributions,
+   * buybacks, withdrawals, etc.) from on-chain transaction logs.
+   *
+   * @param limit - Maximum number of transactions to scan (default: 50)
+   */
+  async getEventHistory(limit = 50) {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [tokenAgentPayments] = getTokenAgentPaymentsPDA(this.mint);
+    const signatures = await connection.getSignaturesForAddress(
+      tokenAgentPayments,
+      { limit }
+    );
+    const allEvents = [];
+    for (const sig of signatures) {
+      if (sig.err) continue;
+      const tx = await connection.getTransaction(sig.signature, {
+        maxSupportedTransactionVersion: 0
+      });
+      if (!tx?.meta?.logMessages) continue;
+      const events = parseAgentEvents(tx.meta.logMessages, connection);
+      allEvents.push(...events);
+    }
+    return allEvents;
+  }
+  // ─── Invoice Validation ─────────────────────────────────────────────────
+  async validateInvoicePayment(params) {
+    const { user, currencyMint } = params;
+    const amount = new BN(params.amount);
+    const memo = new BN(params.memo);
+    const startTime = new BN(params.startTime);
+    const endTime = new BN(params.endTime);
+    const [invoiceId] = getInvoiceIdPDA(
+      this.mint,
+      currencyMint,
+      amount,
+      memo,
+      startTime,
+      endTime
+    );
+    try {
+      const url = new URL(
+        "/agents/invoice-id",
+        this.blockchainClientBaseUrl
+      );
+      url.searchParams.set("invoice-id", invoiceId.toBase58());
+      url.searchParams.set("mint", this.mint.toBase58());
+      const response = await fetch(url.toString());
+      if (response.ok) {
+        const data = await response.json();
+        return data.user === user.toBase58() && data.tokenized_agent_mint === this.mint.toBase58() && data.currency_mint === currencyMint.toBase58() && new BN(data.amount).eq(amount) && new BN(data.memo).eq(memo) && new BN(data.start_time).eq(startTime) && new BN(data.end_time).eq(endTime);
+      }
+    } catch {
+    }
+    return this.validateInvoicePaymentViaRpc({
+      user,
+      currencyMint,
+      amount,
+      memo,
+      startTime,
+      endTime
+    });
+  }
+  /** RPC-based fallback: scans on-chain transaction logs for the payment event. */
+  async validateInvoicePaymentViaRpc(params) {
+    const { user, currencyMint, amount, memo, startTime, endTime } = params;
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    const [invoiceId] = getInvoiceIdPDA(
+      this.mint,
+      currencyMint,
+      amount,
+      memo,
+      startTime,
+      endTime
+    );
+    const signatures = await connection.getSignaturesForAddress(invoiceId);
+    for (const sig of signatures) {
+      const tx = await connection.getTransaction(sig.signature, {
+        maxSupportedTransactionVersion: 0
+      });
+      if (!tx || tx.meta?.err) continue;
+      const logs = tx.meta?.logMessages;
+      if (!logs) continue;
+      const parser = new EventParser(
+        this.program.programId,
+        this.program.coder
+      );
+      for (const event of parser.parseLogs(logs)) {
+        if (event.name !== "agentAcceptPaymentEvent") continue;
+        const data = event.data;
+        if (data.user.equals(user) && data.tokenizedAgentMint.equals(this.mint) && data.currencyMint.equals(currencyMint) && data.amount.eq(amount) && data.memo.eq(memo) && data.startTime.eq(startTime) && data.endTime.eq(endTime)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+};
+
+// src/solana/decoders.ts
+function decodeGlobalConfig(accountData) {
+  return OFFLINE_PUMP_PROGRAM.coder.accounts.decode(
+    "globalConfig",
+    accountData
+  );
+}
+function decodeTokenAgentPaymentInCurrency(accountData) {
+  return OFFLINE_PUMP_PROGRAM.coder.accounts.decode(
+    "tokenAgentPaymentInCurrency",
+    accountData
+  );
+}
+function decodeTokenAgentPayments(accountData) {
+  return OFFLINE_PUMP_PROGRAM.coder.accounts.decode(
+    "tokenAgentPayments",
+    accountData
+  );
+}
+function pk(value) {
+  return new PublicKey(value);
+}
+function serializeIx(ix) {
+  return {
+    programId: ix.programId.toBase58(),
+    keys: ix.keys.map((k) => ({
+      pubkey: k.pubkey.toBase58(),
+      isSigner: k.isSigner,
+      isWritable: k.isWritable
+    })),
+    data: Buffer.from(ix.data).toString("base64")
+  };
+}
+function agent(kit, mint) {
+  return new PumpAgent(pk(mint), "mainnet", kit.connection);
+}
+var createAgentPaymentsAction = {
+  name: "pump_agent_create",
+  similes: [
+    "initialize agent payments",
+    "set up agent monetization",
+    "create tokenized agent payment config",
+    "enable payments for my agent"
+  ],
+  description: "Initialize the on-chain Agent Payments configuration for a Pump Fun token. This must be called once by the token's bonding-curve creator before the agent can accept payments. Sets the agent authority and buyback basis points.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          buybackBps: "500"
+        },
+        output: {
+          status: "success",
+          signature: "5K4b...txSig"
+        },
+        explanation: "Initialize agent payments for the given token with 5% buyback."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address"),
+    agentAuthority: z.string().optional().describe(
+      "Public key of the agent authority. Defaults to the agent wallet."
+    ),
+    buybackBps: z.number().int().min(0).max(1e4).describe("Buyback basis points (0\u201310000, e.g. 500 = 5%)")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = PumpAgentOffline.load(pk(input.mint), kit.connection);
+    const authority = kit.wallet_address;
+    const agentAuthority = input.agentAuthority ? pk(input.agentAuthority) : kit.wallet_address;
+    const ix = await pumpAgent.create({
+      authority,
+      mint: pk(input.mint),
+      agentAuthority,
+      buybackBps: input.buybackBps
+    });
+    return { instruction: serializeIx(ix) };
+  }
+};
+var buildPaymentInstructionsAction = {
+  name: "pump_agent_build_payment_instructions",
+  similes: [
+    "build payment instructions",
+    "create payment transaction",
+    "generate agent payment",
+    "prepare agent payment",
+    "build agent invoice"
+  ],
+  description: "Build the accept-payment instructions for a tokenized agent. Returns serialized instructions that the payer must sign \u2014 does NOT auto-submit. Handles native SOL wrapping automatically when paying in SOL.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          user: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          amount: "1000000",
+          memo: "1"
+        },
+        output: {
+          instructions: "[...serialized instructions]"
+        },
+        explanation: "Build payment instructions for 0.001 SOL to the agent with memo 1."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent to pay"),
+    user: z.string().describe("Public key of the payer"),
+    currencyMint: z.string().optional().describe("Currency mint to pay in. Defaults to native SOL (wrapped)."),
+    amount: z.string().describe("Payment amount in the currency's smallest unit"),
+    memo: z.string().default("0").describe("Invoice memo / identifier"),
+    startTime: z.string().default("0").describe("Invoice start time (unix seconds). Defaults to 0."),
+    endTime: z.string().default("0").describe("Invoice end time (unix seconds). Defaults to 0.")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = PumpAgentOffline.load(pk(input.mint), kit.connection);
+    const currencyMint = input.currencyMint ? pk(input.currencyMint) : NATIVE_MINT;
+    const ixs = await pumpAgent.buildAcceptPaymentInstructions({
+      user: pk(input.user),
+      currencyMint,
+      amount: input.amount,
+      memo: input.memo,
+      startTime: input.startTime,
+      endTime: input.endTime
+    });
+    return { instructions: ixs.map(serializeIx) };
+  }
+};
+var getBalancesAction = {
+  name: "pump_agent_get_balances",
+  similes: [
+    "check agent balances",
+    "get agent earnings",
+    "view agent vault balances",
+    "how much has the agent earned"
+  ],
+  description: "Fetch the current balances across all three agent vaults (payment, buyback, withdraw) for a given currency. Returns vault addresses and token balances.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112"
+        },
+        output: {
+          paymentVault: '{"address":"...","balance":"500000"}',
+          buybackVault: '{"address":"...","balance":"100000"}',
+          withdrawVault: '{"address":"...","balance":"400000"}'
+        },
+        explanation: "Check SOL balances across all vaults for the agent."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    currencyMint: z.string().optional().describe("Currency mint to check balances for. Defaults to native SOL.")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = agent(kit, input.mint);
+    const currencyMint = input.currencyMint ? pk(input.currencyMint) : NATIVE_MINT;
+    const balances = await pumpAgent.getBalances(currencyMint);
+    return {
+      paymentVault: {
+        address: balances.paymentVault.address.toBase58(),
+        balance: balances.paymentVault.balance.toString()
+      },
+      buybackVault: {
+        address: balances.buybackVault.address.toBase58(),
+        balance: balances.buybackVault.balance.toString()
+      },
+      withdrawVault: {
+        address: balances.withdrawVault.address.toBase58(),
+        balance: balances.withdrawVault.balance.toString()
+      }
+    };
+  }
+};
+var validateInvoiceAction = {
+  name: "pump_agent_validate_invoice",
+  similes: [
+    "verify payment",
+    "check if user paid",
+    "validate invoice",
+    "confirm agent payment",
+    "did the user pay"
+  ],
+  description: "Validate that a specific payment was made to an agent. Checks on-chain records to confirm the invoice parameters match. Returns true if the payment is valid.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          user: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          currencyMint: "So11111111111111111111111111111111111111112",
+          amount: "1000000",
+          memo: "42",
+          startTime: "0",
+          endTime: "0"
+        },
+        output: {
+          valid: "true"
+        },
+        explanation: "Validate that the user paid 0.001 SOL with memo 42."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    user: z.string().describe("Public key of the payer to validate"),
+    currencyMint: z.string().describe("Currency mint used for payment"),
+    amount: z.string().describe("Expected payment amount"),
+    memo: z.string().describe("Expected invoice memo"),
+    startTime: z.string().describe("Expected invoice start time (unix seconds)"),
+    endTime: z.string().describe("Expected invoice end time (unix seconds)")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = agent(kit, input.mint);
+    const valid = await pumpAgent.validateInvoicePayment({
+      user: pk(input.user),
+      currencyMint: pk(input.currencyMint),
+      amount: Number(input.amount),
+      memo: Number(input.memo),
+      startTime: Number(input.startTime),
+      endTime: Number(input.endTime)
+    });
+    return { valid };
+  }
+};
+var distributePaymentsAction = {
+  name: "pump_agent_distribute_payments",
+  similes: [
+    "distribute agent payments",
+    "split agent revenue",
+    "process agent payments",
+    "trigger payment distribution"
+  ],
+  description: "Distribute accumulated payments between the buyback and withdraw vaults according to the configured buyback basis points. This is permissionless \u2014 anyone can trigger it.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112"
+        },
+        output: {
+          status: "success",
+          signature: "3Yp7...txSig"
+        },
+        explanation: "Distribute accumulated SOL payments for the agent."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    currencyMint: z.string().optional().describe("Currency mint to distribute. Defaults to native SOL.")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = PumpAgentOffline.load(pk(input.mint), kit.connection);
+    const currencyMint = input.currencyMint ? pk(input.currencyMint) : NATIVE_MINT;
+    const ixs = await pumpAgent.distributePayments({
+      user: kit.wallet_address,
+      currencyMint,
+      includeTransferExtraLamportsForNative: currencyMint.equals(NATIVE_MINT)
+    });
+    return { instructions: ixs.map(serializeIx) };
+  }
+};
+var withdrawAction = {
+  name: "pump_agent_withdraw",
+  similes: [
+    "withdraw agent earnings",
+    "withdraw agent payments",
+    "claim agent revenue",
+    "withdraw from agent vault"
+  ],
+  description: "Withdraw accumulated earnings from the agent withdraw vault. Must be called by the agent authority. Transfers tokens from the withdraw vault to the specified receiver token account.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          currencyMint: "So11111111111111111111111111111111111111112"
+        },
+        output: {
+          status: "success",
+          signature: "4Rz8...txSig"
+        },
+        explanation: "Withdraw accumulated SOL earnings from the agent."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    currencyMint: z.string().describe("Currency mint to withdraw"),
+    receiverAta: z.string().optional().describe(
+      "Receiver token account. Defaults to the agent wallet's ATA for the currency."
+    )
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = PumpAgentOffline.load(pk(input.mint), kit.connection);
+    const currencyMint = pk(input.currencyMint);
+    const receiverAta = input.receiverAta ? pk(input.receiverAta) : getAssociatedTokenAddressSync(currencyMint, kit.wallet_address);
+    const ix = await pumpAgent.withdraw({
+      authority: kit.wallet_address,
+      currencyMint,
+      receiverAta
+    });
+    return { instruction: serializeIx(ix) };
+  }
+};
+var getConfigAction = {
+  name: "pump_agent_get_config",
+  similes: [
+    "get agent config",
+    "check agent settings",
+    "view agent payment config",
+    "agent payment configuration"
+  ],
+  description: "Fetch the on-chain Agent Payments configuration for a token. Returns the agent authority, buyback basis points, and token mint.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112"
+        },
+        output: {
+          authority: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          buybackBps: "500",
+          mint: "So11111111111111111111111111111111111111112"
+        },
+        explanation: "Fetch the agent payment configuration."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = agent(kit, input.mint);
+    const config = await pumpAgent.getAgentConfig();
+    return {
+      authority: config.authority.toBase58(),
+      buybackBps: config.buybackBps,
+      mint: config.mint.toBase58()
+    };
+  }
+};
+var getPaymentStatsAction = {
+  name: "pump_agent_get_payment_stats",
+  similes: [
+    "get payment stats",
+    "agent payment statistics",
+    "how much has the agent earned",
+    "payment analytics"
+  ],
+  description: "Fetch per-currency payment statistics for an agent. Returns total payments received, total distributed to buyback, total distributed to withdraw, and tokens burned.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          currencyMint: "So11111111111111111111111111111111111111112"
+        },
+        output: {
+          totalPayments: "10000000",
+          totalBuyback: "2000000",
+          totalWithdraw: "8000000"
+        },
+        explanation: "Get SOL payment statistics for the agent."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    currencyMint: z.string().describe("Currency mint to get stats for")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = agent(kit, input.mint);
+    const stats = await pumpAgent.getPaymentStats(pk(input.currencyMint));
+    const result = {};
+    for (const [key, value] of Object.entries(stats)) {
+      if (value instanceof PublicKey) {
+        result[key] = value.toBase58();
+      } else if (typeof value === "bigint") {
+        result[key] = value.toString();
+      } else if (value != null && typeof value === "object" && "toString" in value) {
+        result[key] = String(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+};
+var updateBuybackBpsAction = {
+  name: "pump_agent_update_buyback_bps",
+  similes: [
+    "update buyback percentage",
+    "change buyback bps",
+    "set buyback rate",
+    "modify agent buyback"
+  ],
+  description: "Update the buyback basis points for an agent's payment configuration. Must be called by the agent authority. The new bps value determines what percentage of future payments are allocated to token buyback and burn.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          buybackBps: "1000"
+        },
+        output: {
+          status: "success",
+          signature: "5Tz9...txSig"
+        },
+        explanation: "Update buyback to 10% (1000 bps) for the agent."
+      }
+    ]
+  ],
+  schema: z.object({
+    mint: z.string().describe("Token mint address of the agent"),
+    buybackBps: z.number().int().min(0).max(1e4).describe("New buyback basis points (0\u201310000, e.g. 1000 = 10%)")
+  }),
+  handler: async (kit, input) => {
+    const pumpAgent = agent(kit, input.mint);
+    const ix = await pumpAgent.updateBuybackBps({
+      authority: kit.wallet_address,
+      buybackBps: input.buybackBps
+    });
+    return { instruction: serializeIx(ix) };
+  }
+};
+var allActions = [
+  createAgentPaymentsAction,
+  buildPaymentInstructionsAction,
+  getBalancesAction,
+  validateInvoiceAction,
+  distributePaymentsAction,
+  withdrawAction,
+  getConfigAction,
+  getPaymentStatsAction,
+  updateBuybackBpsAction
+];
+
+// src/solana/solana-agent-kit/index.ts
+async function createAgentPayments(agent2, mint, buybackBps, agentAuthority) {
+  const pump = PumpAgentOffline.load(mint, agent2.connection);
+  return pump.create({
+    authority: agent2.wallet_address,
+    mint,
+    agentAuthority: agentAuthority ?? agent2.wallet_address,
+    buybackBps
+  });
+}
+async function buildPayAgentInstructions(agent2, mint, currencyMint, amount, memo = "0", startTime = "0", endTime = "0") {
+  const pump = PumpAgentOffline.load(mint, agent2.connection);
+  return pump.buildAcceptPaymentInstructions({
+    user: agent2.wallet_address,
+    currencyMint,
+    amount,
+    memo,
+    startTime,
+    endTime
+  });
+}
+async function getAgentBalances(agent2, mint, currencyMint = NATIVE_MINT) {
+  const pump = new PumpAgent(mint, "mainnet", agent2.connection);
+  return pump.getBalances(currencyMint);
+}
+async function validateInvoicePayment(agent2, mint, user, currencyMint, amount, memo, startTime, endTime) {
+  const pump = new PumpAgent(mint, "mainnet", agent2.connection);
+  return pump.validateInvoicePayment({
+    user,
+    currencyMint,
+    amount,
+    memo,
+    startTime,
+    endTime
+  });
+}
+async function distributeAgentPayments(agent2, mint, currencyMint = NATIVE_MINT) {
+  const pump = PumpAgentOffline.load(mint, agent2.connection);
+  return pump.distributePayments({
+    user: agent2.wallet_address,
+    currencyMint,
+    includeTransferExtraLamportsForNative: currencyMint.equals(NATIVE_MINT)
+  });
+}
+async function withdrawAgentPayments(agent2, mint, currencyMint, receiverAta) {
+  const pump = PumpAgentOffline.load(mint, agent2.connection);
+  return pump.withdraw({
+    authority: agent2.wallet_address,
+    currencyMint,
+    receiverAta: receiverAta ?? getAssociatedTokenAddressSync(currencyMint, agent2.wallet_address)
+  });
+}
+async function getAgentConfig(agent2, mint) {
+  const pump = new PumpAgent(mint, "mainnet", agent2.connection);
+  return pump.getAgentConfig();
+}
+async function getPaymentStats(agent2, mint, currencyMint) {
+  const pump = new PumpAgent(mint, "mainnet", agent2.connection);
+  return pump.getPaymentStats(currencyMint);
+}
+async function updateBuybackBps(agent2, mint, buybackBps) {
+  const pump = new PumpAgent(mint, "mainnet", agent2.connection);
+  return pump.updateBuybackBps({
+    authority: agent2.wallet_address,
+    buybackBps
+  });
+}
+var PumpAgentPaymentsPlugin = {
+  name: "pump-agent-payments",
+  methods: {
+    createAgentPayments,
+    buildPayAgentInstructions,
+    getAgentBalances,
+    validateInvoicePayment,
+    distributeAgentPayments,
+    withdrawAgentPayments,
+    getAgentConfig,
+    getPaymentStats,
+    updateBuybackBps
+  },
+  actions: allActions
+};
+
+// src/solana/x402/index.ts
+var x402_exports = {};
+__export(x402_exports, {
+  PumpAgentFacilitator: () => PumpAgentFacilitator,
+  SOLANA_DEVNET: () => SOLANA_DEVNET,
+  SOLANA_MAINNET: () => SOLANA_MAINNET,
+  USDC_DEVNET: () => USDC_DEVNET,
+  USDC_MAINNET: () => USDC_MAINNET,
+  X402_HEADER_PAYMENT_REQUIRED: () => X402_HEADER_PAYMENT_REQUIRED,
+  X402_HEADER_PAYMENT_RESPONSE: () => X402_HEADER_PAYMENT_RESPONSE,
+  X402_HEADER_PAYMENT_SIGNATURE: () => X402_HEADER_PAYMENT_SIGNATURE,
+  X402_VERSION: () => X402_VERSION,
+  buildPumpAgentRequirements: () => buildPumpAgentRequirements,
+  createResourceServer: () => createResourceServer,
+  createX402Fetch: () => createX402Fetch,
+  decodePaymentPayload: () => decodePaymentPayload,
+  decodePaymentRequired: () => decodePaymentRequired,
+  decodePaymentResponse: () => decodePaymentResponse,
+  encodePaymentPayload: () => encodePaymentPayload,
+  encodePaymentRequired: () => encodePaymentRequired,
+  encodePaymentResponse: () => encodePaymentResponse,
+  getPaymentPayloadFromRequest: () => getPaymentPayloadFromRequest,
+  getPaymentRequiredFromResponse: () => getPaymentRequiredFromResponse,
+  getPaymentResponseFromResponse: () => getPaymentResponseFromResponse
+});
+
+// src/solana/x402/types.ts
+var X402_VERSION = 2;
+var X402_HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
+var X402_HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
+var X402_HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
+var SOLANA_MAINNET = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp";
+var SOLANA_DEVNET = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
+var USDC_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+var USDC_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+
+// src/solana/x402/headers.ts
+function encodePaymentRequired(pr) {
+  return btoa(JSON.stringify(pr));
+}
+function decodePaymentRequired(headerValue) {
+  return JSON.parse(atob(headerValue));
+}
+function encodePaymentPayload(payload) {
+  return btoa(JSON.stringify(payload));
+}
+function decodePaymentPayload(headerValue) {
+  return JSON.parse(atob(headerValue));
+}
+function encodePaymentResponse(pr) {
+  return btoa(JSON.stringify(pr));
+}
+function decodePaymentResponse(headerValue) {
+  return JSON.parse(atob(headerValue));
+}
+function getPaymentRequiredFromResponse(response) {
+  if (response.status !== 402) return null;
+  const raw = response.headers.get(X402_HEADER_PAYMENT_REQUIRED);
+  if (!raw) return null;
+  return decodePaymentRequired(raw);
+}
+function getPaymentPayloadFromRequest(request) {
+  const raw = request.headers.get(X402_HEADER_PAYMENT_SIGNATURE);
+  if (!raw) return null;
+  return decodePaymentPayload(raw);
+}
+function getPaymentResponseFromResponse(response) {
+  const raw = response.headers.get(X402_HEADER_PAYMENT_RESPONSE);
+  if (!raw) return null;
+  return decodePaymentResponse(raw);
+}
+var SettlementCache = class {
+  cache = /* @__PURE__ */ new Map();
+  maxSize;
+  ttlMs;
+  constructor(maxSize = 1e4, ttlMs = 12e4) {
+    this.maxSize = maxSize;
+    this.ttlMs = ttlMs;
+  }
+  has(key) {
+    const ts = this.cache.get(key);
+    if (!ts) return false;
+    if (Date.now() - ts > this.ttlMs) {
+      this.cache.delete(key);
+      return false;
+    }
+    return true;
+  }
+  set(key) {
+    this.cache.set(key, Date.now());
+    if (this.cache.size > this.maxSize) {
+      const cutoff = Date.now() - this.ttlMs;
+      for (const [k, v] of this.cache) {
+        if (v < cutoff) this.cache.delete(k);
+      }
+    }
+  }
+};
+var memoCounter = 0;
+function generateMemo() {
+  const ts = Date.now();
+  memoCounter = (memoCounter + 1) % 1e6;
+  return `${ts}${String(memoCounter).padStart(6, "0")}`;
+}
+var PumpAgentFacilitator = class {
+  connection;
+  network;
+  settlementCache = new SettlementCache();
+  constructor(config) {
+    this.connection = config.connection;
+    this.network = config.network ?? SOLANA_MAINNET;
+  }
+  async verify(payload, requirements) {
+    if (requirements.scheme !== "pump-agent") {
+      return { isValid: false, invalidReason: "Unsupported scheme" };
+    }
+    if (payload.x402Version !== X402_VERSION) {
+      return { isValid: false, invalidReason: `Expected x402Version ${X402_VERSION}` };
+    }
+    const req = requirements;
+    const proof = payload.payload;
+    const signature = proof.signature;
+    const payer = proof.payer;
+    if (!signature || !payer) {
+      return { isValid: false, invalidReason: "Missing signature or payer" };
+    }
+    if (this.settlementCache.has(signature)) {
+      return { isValid: false, invalidReason: "Duplicate payment" };
+    }
+    if (payload.accepted.amount !== requirements.amount || payload.accepted.asset !== requirements.asset) {
+      return { isValid: false, invalidReason: "Amount or asset mismatch" };
+    }
+    try {
+      const agent2 = new PumpAgent(
+        new PublicKey(req.extra.agentMint),
+        req.network === SOLANA_MAINNET ? "mainnet" : "devnet",
+        this.connection
+      );
+      const valid = await agent2.validateInvoicePayment({
+        user: new PublicKey(payer),
+        currencyMint: new PublicKey(req.asset),
+        amount: Number(req.amount),
+        memo: Number(req.extra.memo),
+        startTime: req.extra.startTime,
+        endTime: req.extra.endTime
+      });
+      if (!valid) {
+        return { isValid: false, invalidReason: "On-chain validation failed", payer };
+      }
+      return { isValid: true, payer };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { isValid: false, invalidReason: `Verification error: ${message}` };
+    }
+  }
+  async settle(payload, requirements) {
+    const verifyResult = await this.verify(payload, requirements);
+    if (!verifyResult.isValid) {
+      return {
+        success: false,
+        errorReason: verifyResult.invalidReason,
+        payer: verifyResult.payer
+      };
+    }
+    const proof = payload.payload;
+    const signature = proof.signature;
+    const payer = proof.payer;
+    this.settlementCache.set(signature);
+    return {
+      success: true,
+      payer,
+      transaction: signature,
+      network: this.network
+    };
+  }
+  async getSupported() {
+    return {
+      kinds: [
+        {
+          scheme: "pump-agent",
+          network: this.network,
+          asset: USDC_MAINNET
+        }
+      ]
+    };
+  }
+};
+function buildPumpAgentRequirements(config) {
+  const windowSec = config.invoiceWindowSeconds ?? 300;
+  const now = Math.floor(Date.now() / 1e3);
+  return {
+    scheme: "pump-agent",
+    network: config.network ?? SOLANA_MAINNET,
+    asset: config.asset ?? USDC_MAINNET,
+    amount: config.amount,
+    payTo: config.payTo,
+    maxTimeoutSeconds: config.maxTimeoutSeconds ?? 60,
+    extra: {
+      agentMint: config.agentMint,
+      memo: generateMemo(),
+      startTime: now,
+      endTime: now + windowSec
+    }
+  };
+}
+function createResourceServer(config) {
+  const { facilitator, resource } = config;
+  return async (request, handler) => {
+    const paymentHeader = request.headers.get(X402_HEADER_PAYMENT_SIGNATURE);
+    if (!paymentHeader) {
+      const body = {
+        x402Version: X402_VERSION,
+        resource,
+        accepts: config.requirements
+      };
+      return new Response(JSON.stringify(body), {
+        status: 402,
+        statusText: "Payment Required",
+        headers: {
+          "Content-Type": "application/json",
+          [X402_HEADER_PAYMENT_REQUIRED]: encodePaymentRequired(body)
+        }
+      });
+    }
+    let paymentPayload;
+    try {
+      paymentPayload = decodePaymentPayload(paymentHeader);
+    } catch {
+      return new Response("Invalid PAYMENT-SIGNATURE header", { status: 400 });
+    }
+    const accepted = paymentPayload.accepted;
+    const matchedReq = config.requirements.find(
+      (r) => r.scheme === accepted.scheme && r.network === accepted.network
+    );
+    if (!matchedReq) {
+      return new Response("No matching payment requirement", { status: 400 });
+    }
+    const verifyResult = await facilitator.verify(paymentPayload, matchedReq);
+    if (!verifyResult.isValid) {
+      return new Response(
+        JSON.stringify({ error: verifyResult.invalidReason }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const settleResult = await facilitator.settle(paymentPayload, matchedReq);
+    if (!settleResult.success) {
+      return new Response(
+        JSON.stringify({ error: settleResult.errorReason }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const finalResponse = await handler();
+    const paymentResponse = {
+      success: true,
+      transaction: settleResult.transaction,
+      network: settleResult.network,
+      payer: settleResult.payer
+    };
+    const outResponse = new Response(finalResponse.body, {
+      status: finalResponse.status,
+      statusText: finalResponse.statusText,
+      headers: new Headers(finalResponse.headers)
+    });
+    outResponse.headers.set(
+      X402_HEADER_PAYMENT_RESPONSE,
+      encodePaymentResponse(paymentResponse)
+    );
+    return outResponse;
+  };
+}
+function createX402Fetch(config) {
+  const {
+    payer,
+    signTransaction,
+    sendTransaction,
+    connection,
+    network = SOLANA_MAINNET,
+    confirmationTimeoutMs = 3e4
+  } = config;
+  return async (input, init) => {
+    const response = await fetch(input, init);
+    if (response.status !== 402) return response;
+    const paymentRequired = getPaymentRequiredFromResponse(response);
+    if (!paymentRequired) return response;
+    const accepted = selectRequirement(paymentRequired, network);
+    if (!accepted) return response;
+    const proof = await buildPaymentProof(
+      accepted,
+      payer,
+      connection,
+      signTransaction,
+      sendTransaction,
+      confirmationTimeoutMs
+    );
+    const paymentPayload = {
+      x402Version: X402_VERSION,
+      resource: typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+      accepted,
+      payload: proof
+    };
+    const retryInit = { ...init };
+    const headers = new Headers(retryInit.headers);
+    headers.set(X402_HEADER_PAYMENT_SIGNATURE, encodePaymentPayload(paymentPayload));
+    retryInit.headers = headers;
+    return fetch(input, retryInit);
+  };
+}
+function selectRequirement(paymentRequired, network) {
+  return paymentRequired.accepts.find(
+    (r) => r.scheme === "pump-agent" && r.network === network
+  ) ?? paymentRequired.accepts.find(
+    (r) => r.scheme === "exact" && r.network === network
+  ) ?? null;
+}
+async function buildPaymentProof(requirements, payer, connection, signTransaction, sendTransaction, confirmationTimeoutMs) {
+  const scheme = requirements.scheme;
+  if (scheme === "pump-agent") {
+    return buildPumpAgentProof(
+      requirements,
+      payer,
+      connection,
+      signTransaction,
+      sendTransaction,
+      confirmationTimeoutMs
+    );
+  }
+  if (scheme === "exact") {
+    return buildExactProof(
+      requirements,
+      payer,
+      connection,
+      signTransaction,
+      sendTransaction,
+      confirmationTimeoutMs
+    );
+  }
+  throw new Error(`Unsupported scheme: ${scheme}`);
+}
+async function buildPumpAgentProof(requirements, payer, connection, signTransaction, sendTransaction, confirmationTimeoutMs) {
+  const { extra } = requirements;
+  const agent2 = new PumpAgentOffline(new PublicKey(extra.agentMint));
+  const instructions = await agent2.buildAcceptPaymentInstructions({
+    user: new PublicKey(payer),
+    currencyMint: new PublicKey(requirements.asset),
+    amount: requirements.amount,
+    memo: extra.memo,
+    startTime: extra.startTime,
+    endTime: extra.endTime
+  });
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const tx = new Transaction();
+  tx.recentBlockhash = blockhash;
+  tx.lastValidBlockHeight = lastValidBlockHeight;
+  tx.feePayer = new PublicKey(payer);
+  tx.add(...instructions);
+  const txBase64 = Buffer.from(
+    tx.serialize({ requireAllSignatures: false })
+  ).toString("base64");
+  const signedTxBase64 = await signTransaction(txBase64);
+  const signature = await sendTransaction(signedTxBase64);
+  await waitForConfirmation(
+    connection,
+    signature,
+    lastValidBlockHeight,
+    confirmationTimeoutMs
+  );
+  return {
+    signature,
+    payer,
+    agentMint: extra.agentMint,
+    asset: requirements.asset,
+    amount: requirements.amount,
+    memo: extra.memo,
+    startTime: extra.startTime,
+    endTime: extra.endTime
+  };
+}
+async function buildExactProof(requirements, payer, connection, signTransaction, sendTransaction, confirmationTimeoutMs) {
+  const payerPk = new PublicKey(payer);
+  const mint = new PublicKey(requirements.asset);
+  const payTo = new PublicKey(requirements.payTo);
+  const amount = BigInt(requirements.amount);
+  const mintInfo = await getMint(connection, mint);
+  const senderAta = getAssociatedTokenAddressSync(mint, payerPk, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+  const receiverAta = getAssociatedTokenAddressSync(mint, payTo, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const tx = new Transaction();
+  tx.recentBlockhash = blockhash;
+  tx.lastValidBlockHeight = lastValidBlockHeight;
+  tx.feePayer = payerPk;
+  const receiverInfo = await connection.getAccountInfo(receiverAta);
+  if (!receiverInfo) {
+    tx.add(createAssociatedTokenAccountInstruction(
+      payerPk,
+      receiverAta,
+      payTo,
+      mint,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    ));
+  }
+  tx.add(createTransferCheckedInstruction(
+    senderAta,
+    mint,
+    receiverAta,
+    payerPk,
+    amount,
+    mintInfo.decimals,
+    [],
+    TOKEN_PROGRAM_ID
+  ));
+  const txBase64 = Buffer.from(tx.serialize({ requireAllSignatures: false })).toString("base64");
+  const signedTxBase64 = await signTransaction(txBase64);
+  const signature = await sendTransaction(signedTxBase64);
+  await waitForConfirmation(connection, signature, lastValidBlockHeight, confirmationTimeoutMs);
+  return { signature, network: requirements.network };
+}
+async function waitForConfirmation(connection, signature, lastValidBlockHeight, timeoutMs) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const status = await connection.getSignatureStatus(signature);
+    const value = status?.value;
+    if (value?.confirmationStatus === "confirmed" || value?.confirmationStatus === "finalized") {
+      if (value.err)
+        throw new Error(`Transaction failed: ${JSON.stringify(value.err)}`);
+      return;
+    }
+    const blockHeight = await connection.getBlockHeight();
+    if (blockHeight > lastValidBlockHeight) {
+      throw new Error("Transaction expired (blockhash no longer valid)");
+    }
+    await new Promise((r) => setTimeout(r, 2e3));
+  }
+  throw new Error("Transaction confirmation timed out");
+}
+
+// src/solana/index.ts
+var PUMP_AGENT_PAYMENTS_PROGRAM_ID = new PublicKey(pump_agent_payments_default.address);
+function getProgram(connection) {
+  return getPumpProgram(connection);
+}
+
+// src/evm/index.ts
+var evm_exports = {};
+__export(evm_exports, {
+  AGENT_PAYMENTS_ABI: () => AGENT_PAYMENTS_ABI,
+  ERC20_ABI: () => ERC20_ABI,
+  EVM_CHAINS: () => EVM_CHAINS,
+  EvmAgent: () => EvmAgent,
+  EvmAgentOffline: () => EvmAgentOffline,
+  NATIVE_TOKEN_ADDRESS: () => NATIVE_TOKEN_ADDRESS,
+  SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
+  buildInvoiceWindow: () => buildInvoiceWindow,
+  generateMemo: () => generateMemo2,
+  getEvmChain: () => getEvmChain,
+  getInvoiceId: () => getInvoiceId,
+  isEvmChainSupported: () => isEvmChainSupported,
+  parseEvmAgentEvents: () => parseEvmAgentEvents
+});
+
+// src/evm/abi.ts
+var AGENT_PAYMENTS_ABI = [
+  // ── Write functions ──────────────────────────────────────────────────────
+  {
+    name: "createAgent",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "agentAuthority", type: "address" },
+      { name: "buybackBps", type: "uint16" }
+    ],
+    outputs: []
+  },
+  {
+    name: "acceptPayment",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" },
+      { name: "amount", type: "uint256" },
+      { name: "memo", type: "uint64" },
+      { name: "startTime", type: "int64" },
+      { name: "endTime", type: "int64" }
+    ],
+    outputs: [{ name: "invoiceId", type: "bytes32" }]
+  },
+  {
+    name: "acceptPaymentNative",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "memo", type: "uint64" },
+      { name: "startTime", type: "int64" },
+      { name: "endTime", type: "int64" }
+    ],
+    outputs: [{ name: "invoiceId", type: "bytes32" }]
+  },
+  {
+    name: "distributePayments",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    name: "buybackTrigger",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" },
+      { name: "swapRouter", type: "address" },
+      { name: "swapData", type: "bytes" }
+    ],
+    outputs: [{ name: "tokensBurned", type: "uint256" }]
+  },
+  {
+    name: "withdraw",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" },
+      { name: "receiver", type: "address" }
+    ],
+    outputs: [{ name: "amount", type: "uint256" }]
+  },
+  {
+    name: "updateBuybackBps",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "buybackBps", type: "uint16" }
+    ],
+    outputs: []
+  },
+  {
+    name: "updateAuthority",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "newAuthority", type: "address" }
+    ],
+    outputs: []
+  },
+  // ── Read functions ───────────────────────────────────────────────────────
+  {
+    name: "getAgentConfig",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agentToken", type: "address" }],
+    outputs: [
+      { name: "authority", type: "address" },
+      { name: "buybackBps", type: "uint16" },
+      { name: "exists", type: "bool" }
+    ]
+  },
+  {
+    name: "getBalances",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" }
+    ],
+    outputs: [
+      { name: "paymentVault", type: "uint256" },
+      { name: "buybackVault", type: "uint256" },
+      { name: "withdrawVault", type: "uint256" }
+    ]
+  },
+  {
+    name: "getPaymentStats",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "agentToken", type: "address" },
+      { name: "currencyToken", type: "address" }
+    ],
+    outputs: [
+      { name: "totalPayments", type: "uint256" },
+      { name: "totalBuybacks", type: "uint256" },
+      { name: "totalWithdrawn", type: "uint256" },
+      { name: "tokensBurned", type: "uint256" }
+    ]
+  },
+  {
+    name: "isInvoicePaid",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "invoiceId", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  // ── Events ───────────────────────────────────────────────────────────────
+  {
+    name: "AgentCreated",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "authority", type: "address", indexed: true },
+      { name: "buybackBps", type: "uint16", indexed: false }
+    ]
+  },
+  {
+    name: "PaymentAccepted",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "payer", type: "address", indexed: true },
+      { name: "currencyToken", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "memo", type: "uint64", indexed: false },
+      { name: "invoiceId", type: "bytes32", indexed: false }
+    ]
+  },
+  {
+    name: "PaymentsDistributed",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "currencyToken", type: "address", indexed: false },
+      { name: "buybackAmount", type: "uint256", indexed: false },
+      { name: "withdrawAmount", type: "uint256", indexed: false }
+    ]
+  },
+  {
+    name: "BuybackTriggered",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "currencyToken", type: "address", indexed: false },
+      { name: "currencySpent", type: "uint256", indexed: false },
+      { name: "tokensBurned", type: "uint256", indexed: false }
+    ]
+  },
+  {
+    name: "Withdrawn",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "authority", type: "address", indexed: true },
+      { name: "currencyToken", type: "address", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "receiver", type: "address", indexed: false }
+    ]
+  },
+  {
+    name: "AuthorityUpdated",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "oldAuthority", type: "address", indexed: false },
+      { name: "newAuthority", type: "address", indexed: false }
+    ]
+  },
+  {
+    name: "BuybackBpsUpdated",
+    type: "event",
+    inputs: [
+      { name: "agentToken", type: "address", indexed: true },
+      { name: "oldBps", type: "uint16", indexed: false },
+      { name: "newBps", type: "uint16", indexed: false }
+    ]
+  }
+];
+var ERC20_ABI = [
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" }
+    ],
+    outputs: [{ name: "", type: "bool" }]
+  },
+  {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" }
+    ],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    name: "balanceOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    name: "decimals",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }]
+  }
+];
+
+// src/evm/addresses.ts
+var UNDEPLOYED = "0x0000000000000000000000000000000000000000";
+var EVM_CHAINS = {
+  1: {
+    id: 1,
+    name: "Ethereum",
+    rpcUrl: "https://eth.llamarpc.com",
+    blockExplorer: "https://etherscan.io",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    wrappedNative: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    agentPayments: UNDEPLOYED
+  },
+  8453: {
+    id: 8453,
+    name: "Base",
+    rpcUrl: "https://mainnet.base.org",
+    blockExplorer: "https://basescan.org",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    wrappedNative: "0x4200000000000000000000000000000000000006",
+    agentPayments: UNDEPLOYED
+  },
+  42161: {
+    id: 42161,
+    name: "Arbitrum One",
+    rpcUrl: "https://arb1.arbitrum.io/rpc",
+    blockExplorer: "https://arbiscan.io",
+    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    wrappedNative: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+    agentPayments: UNDEPLOYED
+  },
+  137: {
+    id: 137,
+    name: "Polygon",
+    rpcUrl: "https://polygon-rpc.com",
+    blockExplorer: "https://polygonscan.com",
+    nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+    usdc: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    wrappedNative: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+    agentPayments: UNDEPLOYED
+  },
+  56: {
+    id: 56,
+    name: "BNB Smart Chain",
+    rpcUrl: "https://bsc-dataseed.binance.org",
+    blockExplorer: "https://bscscan.com",
+    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+    usdc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    wrappedNative: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    agentPayments: UNDEPLOYED
+  },
+  43114: {
+    id: 43114,
+    name: "Avalanche",
+    rpcUrl: "https://api.avax.network/ext/bc/C/rpc",
+    blockExplorer: "https://snowtrace.io",
+    nativeCurrency: { name: "AVAX", symbol: "AVAX", decimals: 18 },
+    usdc: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    wrappedNative: "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7",
+    agentPayments: UNDEPLOYED
+  }
+};
+var SUPPORTED_CHAIN_IDS = Object.keys(EVM_CHAINS).map(Number);
+function getEvmChain(chainId) {
+  const chain = EVM_CHAINS[chainId];
+  if (!chain) throw new Error(`Unsupported EVM chain: ${chainId}`);
+  return chain;
+}
+function isEvmChainSupported(chainId) {
+  return chainId in EVM_CHAINS;
+}
+var NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+function getInvoiceId(agentToken, currencyToken, amount, memo, startTime, endTime) {
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: "address" },
+        { type: "address" },
+        { type: "uint256" },
+        { type: "uint64" },
+        { type: "int64" },
+        { type: "int64" }
+      ],
+      [agentToken, currencyToken, amount, memo, startTime, endTime]
+    )
+  );
+}
+function buildInvoiceWindow(windowSeconds = 300) {
+  const now = BigInt(Math.floor(Date.now() / 1e3));
+  return {
+    startTime: now,
+    endTime: now + BigInt(windowSeconds)
+  };
+}
+function generateMemo2() {
+  const arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  return arr.reduce((acc, byte) => acc << 8n | BigInt(byte), 0n);
+}
+
+// src/evm/EvmAgentOffline.ts
+var EvmAgentOffline = class {
+  agentToken;
+  chainId;
+  contractAddress;
+  constructor(agentToken, chainId) {
+    this.agentToken = agentToken;
+    this.chainId = chainId;
+    this.contractAddress = getEvmChain(chainId).agentPayments;
+  }
+  // ── Agent setup ────────────────────────────────────────────────────────────
+  /** Build the createAgent transaction (one-time agent registration). */
+  buildCreateAgentTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "createAgent",
+        args: [params.agentToken, params.agentAuthority, params.buybackBps]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  // ── Payment acceptance ────────────────────────────────────────────────────
+  /**
+   * Build the acceptPayment transaction bundle.
+   * Returns an optional ERC-20 approval + the main payment tx.
+   *
+   * For native currency (ETH/BNB/AVAX), pass currencyToken as "native".
+   * The value field on the tx will be set to the payment amount.
+   */
+  buildAcceptPaymentTx(params, payer) {
+    const isNative = params.currencyToken === "native";
+    if (isNative) {
+      return {
+        tx: {
+          to: this.contractAddress,
+          data: encodeFunctionData({
+            abi: AGENT_PAYMENTS_ABI,
+            functionName: "acceptPaymentNative",
+            args: [
+              params.agentToken,
+              params.memo,
+              params.startTime,
+              params.endTime
+            ]
+          }),
+          value: params.amount,
+          chainId: this.chainId
+        }
+      };
+    }
+    const approval = {
+      to: params.currencyToken,
+      data: encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [this.contractAddress, maxUint256]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+    const tx = {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "acceptPayment",
+        args: [
+          params.agentToken,
+          params.currencyToken,
+          params.amount,
+          params.memo,
+          params.startTime,
+          params.endTime
+        ]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+    return { approval, tx };
+  }
+  /**
+   * Convenience wrapper: auto-generates memo + time window.
+   * Mirrors PumpAgentOffline.buildAcceptPaymentInstructions().
+   */
+  buildAcceptPaymentInstructions(opts) {
+    const memo = generateMemo2();
+    const { startTime, endTime } = buildInvoiceWindow(opts.windowSeconds);
+    const currencyAddress = opts.currencyToken === "native" ? NATIVE_TOKEN_ADDRESS : opts.currencyToken;
+    const invoiceId = getInvoiceId(
+      opts.agentToken,
+      currencyAddress,
+      opts.amount,
+      memo,
+      startTime,
+      endTime
+    );
+    const bundle = this.buildAcceptPaymentTx(
+      {
+        agentToken: opts.agentToken,
+        currencyToken: opts.currencyToken,
+        amount: opts.amount,
+        memo,
+        startTime,
+        endTime
+      },
+      opts.payer
+    );
+    return { bundle, memo, invoiceId };
+  }
+  // ── Distribution + buyback ─────────────────────────────────────────────────
+  /** Build the distributePayments transaction. Permissionless. */
+  buildDistributePaymentsTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "distributePayments",
+        args: [params.agentToken, params.currencyToken]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  /** Build the buybackTrigger transaction. Caller must be global buyback authority. */
+  buildBuybackTriggerTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "buybackTrigger",
+        args: [
+          params.agentToken,
+          params.currencyToken,
+          params.swapRouter,
+          params.swapData
+        ]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  // ── Withdrawal ─────────────────────────────────────────────────────────────
+  /** Build the withdraw transaction. Caller must be agent authority. */
+  buildWithdrawTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "withdraw",
+        args: [params.agentToken, params.currencyToken, params.receiver]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  // ── Config updates ─────────────────────────────────────────────────────────
+  buildUpdateBuybackBpsTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "updateBuybackBps",
+        args: [params.agentToken, params.buybackBps]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  buildUpdateAuthorityTx(params) {
+    return {
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: AGENT_PAYMENTS_ABI,
+        functionName: "updateAuthority",
+        args: [params.agentToken, params.newAuthority]
+      }),
+      value: 0n,
+      chainId: this.chainId
+    };
+  }
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  /** Compute the invoice ID for a payment without sending anything. */
+  computeInvoiceId(currencyToken, amount, memo, startTime, endTime) {
+    const currency = currencyToken === "native" ? NATIVE_TOKEN_ADDRESS : currencyToken;
+    return getInvoiceId(this.agentToken, currency, amount, memo, startTime, endTime);
+  }
+};
+
+// src/evm/events.ts
+function parseEvmAgentEvents(logs) {
+  const events = [];
+  for (const log of logs) {
+    const name = log.eventName;
+    const args = log.args ?? {};
+    const meta = {
+      txHash: log.transactionHash ?? "0x",
+      blockNumber: log.blockNumber ?? 0n
+    };
+    try {
+      switch (name) {
+        case "AgentCreated":
+          events.push({
+            name: "AgentCreated",
+            agentToken: args.agentToken,
+            authority: args.authority,
+            buybackBps: Number(args.buybackBps),
+            ...meta
+          });
+          break;
+        case "PaymentAccepted":
+          events.push({
+            name: "PaymentAccepted",
+            agentToken: args.agentToken,
+            payer: args.payer,
+            currencyToken: args.currencyToken,
+            amount: BigInt(String(args.amount ?? 0n)),
+            memo: BigInt(String(args.memo ?? 0n)),
+            invoiceId: args.invoiceId,
+            ...meta
+          });
+          break;
+        case "PaymentsDistributed":
+          events.push({
+            name: "PaymentsDistributed",
+            agentToken: args.agentToken,
+            currencyToken: args.currencyToken,
+            buybackAmount: BigInt(String(args.buybackAmount ?? 0n)),
+            withdrawAmount: BigInt(String(args.withdrawAmount ?? 0n)),
+            ...meta
+          });
+          break;
+        case "BuybackTriggered":
+          events.push({
+            name: "BuybackTriggered",
+            agentToken: args.agentToken,
+            currencyToken: args.currencyToken,
+            currencySpent: BigInt(String(args.currencySpent ?? 0n)),
+            tokensBurned: BigInt(String(args.tokensBurned ?? 0n)),
+            ...meta
+          });
+          break;
+        case "Withdrawn":
+          events.push({
+            name: "Withdrawn",
+            agentToken: args.agentToken,
+            authority: args.authority,
+            currencyToken: args.currencyToken,
+            amount: BigInt(String(args.amount ?? 0n)),
+            receiver: args.receiver,
+            ...meta
+          });
+          break;
+      }
+    } catch {
+    }
+  }
+  return events;
+}
+
+// src/evm/EvmAgent.ts
+var EvmAgent = class extends EvmAgentOffline {
+  client;
+  constructor(agentToken, chainId, rpcUrl) {
+    super(agentToken, chainId);
+    const chain = getEvmChain(chainId);
+    this.client = createPublicClient({
+      transport: http(rpcUrl ?? chain.rpcUrl)
+    });
+  }
+  // ── Read functions ────────────────────────────────────────────────────────
+  /** Fetch the agent's on-chain config. Mirrors PumpAgent.getAgentConfig(). */
+  async getAgentConfig() {
+    const [authority, buybackBps, exists] = await this.client.readContract({
+      address: this.contractAddress,
+      abi: AGENT_PAYMENTS_ABI,
+      functionName: "getAgentConfig",
+      args: [this.agentToken]
+    });
+    return { agentToken: this.agentToken, authority, buybackBps, exists };
+  }
+  /** Fetch vault balances for a given currency. Mirrors PumpAgent.getAgentBalances(). */
+  async getBalances(currencyToken) {
+    const [paymentVault, buybackVault, withdrawVault] = await this.client.readContract({
+      address: this.contractAddress,
+      abi: AGENT_PAYMENTS_ABI,
+      functionName: "getBalances",
+      args: [this.agentToken, currencyToken]
+    });
+    return {
+      agentToken: this.agentToken,
+      currencyToken,
+      paymentVault,
+      buybackVault,
+      withdrawVault
+    };
+  }
+  /** Fetch cumulative payment stats. Mirrors PumpAgent.getPaymentStats(). */
+  async getPaymentStats(currencyToken) {
+    const [totalPayments, totalBuybacks, totalWithdrawn, tokensBurned] = await this.client.readContract({
+      address: this.contractAddress,
+      abi: AGENT_PAYMENTS_ABI,
+      functionName: "getPaymentStats",
+      args: [this.agentToken, currencyToken]
+    });
+    return {
+      agentToken: this.agentToken,
+      currencyToken,
+      totalPayments,
+      totalBuybacks,
+      totalWithdrawn,
+      tokensBurned
+    };
+  }
+  /** Check if an invoice has already been paid. */
+  async isInvoicePaid(invoiceId) {
+    return this.client.readContract({
+      address: this.contractAddress,
+      abi: AGENT_PAYMENTS_ABI,
+      functionName: "isInvoicePaid",
+      args: [invoiceId]
+    });
+  }
+  // ── Invoice validation ────────────────────────────────────────────────────
+  /**
+   * Validate that a specific invoice has been paid on-chain.
+   * Mirrors PumpAgent.validateInvoicePayment().
+   *
+   * Primary path: checks the isInvoicePaid mapping directly.
+   * Fallback: scans PaymentAccepted events for matching parameters.
+   */
+  async validateInvoicePayment(params) {
+    const currency = params.currencyToken === "native" ? NATIVE_TOKEN_ADDRESS : params.currencyToken;
+    const invoiceId = getInvoiceId(
+      this.agentToken,
+      currency,
+      params.amount,
+      params.memo,
+      params.startTime,
+      params.endTime
+    );
+    const paid = await this.isInvoicePaid(invoiceId);
+    if (paid) {
+      return { paid: true, invoiceId };
+    }
+    try {
+      const logs = await this.client.getLogs({
+        address: this.contractAddress,
+        event: AGENT_PAYMENTS_ABI.find((x) => x.type === "event" && x.name === "PaymentAccepted"),
+        args: { agentToken: this.agentToken, payer: params.payer },
+        fromBlock: "earliest"
+      });
+      const events = parseEvmAgentEvents(logs);
+      const match = events.find(
+        (e) => e.name === "PaymentAccepted" && e.invoiceId.toLowerCase() === invoiceId.toLowerCase()
+      );
+      if (match) {
+        return {
+          paid: true,
+          invoiceId,
+          txHash: match.txHash,
+          blockNumber: match.blockNumber
+        };
+      }
+    } catch {
+    }
+    return { paid: false, invoiceId };
+  }
+  /**
+   * Get recent PaymentAccepted events for this agent.
+   * Mirrors PumpAgent payment history queries.
+   */
+  async getPaymentHistory(opts = {}) {
+    const logs = await this.client.getLogs({
+      address: this.contractAddress,
+      event: AGENT_PAYMENTS_ABI.find((x) => x.type === "event" && x.name === "PaymentAccepted"),
+      args: {
+        agentToken: this.agentToken,
+        ...opts.payer ? { payer: opts.payer } : {}
+      },
+      fromBlock: opts.fromBlock ?? "earliest",
+      toBlock: opts.toBlock ?? "latest"
+    });
+    return parseEvmAgentEvents(logs).filter(
+      (e) => e.name === "PaymentAccepted" && (!opts.currencyToken || e.currencyToken.toLowerCase() === opts.currencyToken.toLowerCase())
+    );
+  }
+};
+
+// src/x402/index.ts
+var x402_exports2 = {};
+__export(x402_exports2, {
+  buildPaymentRequiredHeader: () => buildPaymentRequiredHeader,
+  createEvmX402Fetch: () => createEvmX402Fetch,
+  decodePaymentHeader: () => decodePaymentHeader,
+  verifyEvmPayment: () => verifyEvmPayment
+});
+
+// src/x402/evm-client.ts
+init_chains();
+function createEvmX402Fetch(opts) {
+  return async function x402Fetch(input, init) {
+    const firstRes = await fetch(input, init);
+    if (firstRes.status !== 402) return firstRes;
+    const requirementsHeader = firstRes.headers.get("X-Payment-Required");
+    if (!requirementsHeader) return firstRes;
+    let requirements;
+    try {
+      requirements = JSON.parse(atob(requirementsHeader));
+    } catch {
+      return firstRes;
+    }
+    if (requirements.scheme !== "pump-agent-evm") return firstRes;
+    if (opts.onPaymentRequired) {
+      const confirmed = await opts.onPaymentRequired(requirements);
+      if (!confirmed) return firstRes;
+    }
+    const chain = getChain(opts.walletClient.chainId);
+    const { getQuote: getQuote2 } = await Promise.resolve().then(() => (init_quote(), quote_exports));
+    const { buildEvmPaymentTransaction: buildEvmPaymentTransaction2 } = await Promise.resolve().then(() => (init_transaction(), transaction_exports));
+    const quote = await getQuote2({
+      fromChainId: opts.walletClient.chainId,
+      fromToken: chain.usdc,
+      fromAmount: BigInt(requirements.maxAmountRequired),
+      agentMint: requirements.agentMint
+    });
+    const txs = await buildEvmPaymentTransaction2({
+      quote,
+      agentMint: requirements.agentMint,
+      destinationSolanaWallet: requirements.payTo,
+      memo: requirements.memo,
+      sender: opts.walletClient.address
+    });
+    if (txs.approval) {
+      await opts.walletClient.sendTransaction({
+        to: txs.approval.to,
+        data: txs.approval.data,
+        value: txs.approval.value,
+        chainId: opts.walletClient.chainId
+      });
+    }
+    const bridgeTxHash = await opts.walletClient.sendTransaction({
+      to: txs.bridge.to,
+      data: txs.bridge.data,
+      value: txs.bridge.value,
+      chainId: txs.bridge.chainId
+    });
+    const paymentProof = btoa(
+      JSON.stringify({
+        scheme: "pump-agent-evm",
+        chainId: opts.walletClient.chainId,
+        txHash: bridgeTxHash,
+        quoteId: quote.quoteId,
+        memo: requirements.memo
+      })
+    );
+    if (opts.onPaymentSubmitted) {
+      opts.onPaymentSubmitted(bridgeTxHash, quote.quoteId);
+    }
+    const retryHeaders = new Headers(init?.headers);
+    retryHeaders.set("X-Payment", paymentProof);
+    return fetch(input, { ...init, headers: retryHeaders });
+  };
+}
+
+// src/evm/validate.ts
+init_constants();
+async function getPaymentStatus(depositId) {
+  const res = await fetch(`${PUMP_CROSSCHAIN_API}/status/${depositId}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Status check failed (${res.status}): ${body}`);
+  }
+  const data = await res.json();
+  const mapped = mapStatus(data.status);
+  return {
+    status: mapped,
+    depositId,
+    solanaSignature: data.solanaSignature,
+    error: data.error
+  };
+}
+function mapStatus(raw) {
+  switch (raw) {
+    case "pending":
+    case "waitingForDeposit":
+      return "pending_evm_confirmation";
+    case "processing":
+    case "bridging":
+    case "inTransit":
+      return "bridging";
+    case "completed":
+    case "settled":
+      return "arrived_on_solana";
+    case "failed":
+    case "expired":
+    case "refunded":
+      return "failed";
+    default:
+      return "bridging";
+  }
+}
+
+// src/x402/evm-facilitator.ts
+init_constants();
+async function verifyEvmPayment(params) {
+  const { proof, expectedMemo, minAmountUsdc, agentMint } = params;
+  if (proof.scheme !== "pump-agent-evm") {
+    return { valid: false, error: "Unknown payment scheme" };
+  }
+  if (proof.memo !== expectedMemo) {
+    return { valid: false, error: "Memo mismatch" };
+  }
+  let depositId;
+  try {
+    const res = await fetch(
+      `${PUMP_CROSSCHAIN_API}/deposit?txHash=${proof.txHash}&chainId=${proof.chainId}`
+    );
+    if (!res.ok) throw new Error(`Deposit lookup failed (${res.status})`);
+    const data = await res.json();
+    depositId = data.depositId;
+    const confirmedAmount = BigInt(data.amountUsdc);
+    if (confirmedAmount < minAmountUsdc) {
+      return {
+        valid: false,
+        depositId,
+        error: `Insufficient amount: got ${confirmedAmount}, need ${minAmountUsdc}`
+      };
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      error: `EVM tx verification failed: ${err.message}`
+    };
+  }
+  if (!params.waitForSolana) {
+    return { valid: true, depositId };
+  }
+  try {
+    const status = await waitWithTimeout(depositId);
+    if (status.status === "arrived_on_solana") {
+      return {
+        valid: true,
+        depositId,
+        solanaSignature: status.solanaSignature
+      };
+    }
+    return {
+      valid: false,
+      depositId,
+      error: `Payment failed in transit: ${status.error ?? status.status}`
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      depositId,
+      error: `Solana arrival timeout: ${err.message}`
+    };
+  }
+}
+async function waitWithTimeout(depositId, maxMs = 6e4) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    const status = await getPaymentStatus(depositId);
+    if (status.status === "arrived_on_solana" || status.status === "failed") {
+      return status;
+    }
+    await new Promise((r) => setTimeout(r, 3e3));
+  }
+  throw new Error(`Timed out waiting for Solana arrival (${maxMs}ms)`);
+}
+function decodePaymentHeader(headerValue) {
+  if (!headerValue) return null;
+  try {
+    const decoded = JSON.parse(atob(headerValue));
+    if (decoded.scheme !== "pump-agent-evm") return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+function buildPaymentRequiredHeader(opts) {
+  return btoa(
+    JSON.stringify({
+      scheme: "pump-agent-evm",
+      agentMint: opts.agentMint,
+      maxAmountRequired: opts.maxAmountUsdc.toString(),
+      resource: opts.resource,
+      description: opts.description,
+      payTo: opts.payTo,
+      memo: opts.memo
+    })
+  );
+}
+
+export { AGENT_PAYMENTS_ABI, BONDING_CURVE_SEED, BUYBACK_AUTHORITY_SEED, ERC20_ABI, EVM_CHAINS, EvmAgent, EvmAgentOffline, GLOBAL_CONFIG_SEED, INVOICE_ID_SEED, NATIVE_TOKEN_ADDRESS, OFFLINE_PUMP_PROGRAM, PAYMENT_IN_CURRENCY_SEED, PROGRAM_ID, PUMP_AGENT_PAYMENTS_PROGRAM_ID, PUMP_FEES_PROGRAM_ID, PUMP_PROGRAM_ID, PumpAgent, PumpAgentOffline, PumpAgentPaymentsPlugin, SHARING_CONFIG_SEED, SUPPORTED_CHAIN_IDS, TOKEN_AGENT_PAYMENTS_MIN_RENT_EXEMPT_LAMPORTS, TOKEN_AGENT_PAYMENTS_SEED, WITHDRAW_AUTHORITY_SEED, buildInvoiceWindow, createEventParser, decodeGlobalConfig, decodeTokenAgentPaymentInCurrency, decodeTokenAgentPayments, evm_exports as evm, generateMemo2 as generateMemo, getBondingCurvePDA, getBuybackAuthorityPDA, getEvmChain, getGlobalConfigPDA, getInvoiceId, getInvoiceIdPDA, getOfflineProgram, getPaymentInCurrencyPDA, getProgram, getPumpProgram, getPumpProgramWithFallback, getSharingConfigPDA, getTokenAgentPaymentsPDA, getWithdrawAuthorityPDA, isEvmChainSupported, parseAgentEvents, parseEvmAgentEvents, solana_exports as solana, subscribeToAgentEvents, x402_exports as x402, x402_exports2 as x402Evm };
+//# sourceMappingURL=index.js.map
+//# sourceMappingURL=index.js.map
