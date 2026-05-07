@@ -8,7 +8,7 @@
 ## Install
 
 ```bash
-npm install @pump-fun/agent-payments-crosschain-sdk
+npm install github:nirholas/agent-payments-sdk
 ```
 
 ## Usage
@@ -16,13 +16,13 @@ npm install @pump-fun/agent-payments-crosschain-sdk
 ### Solana (existing flow)
 
 ```ts
-import { PumpAgent } from "@pump-fun/agent-payments-crosschain-sdk/solana";
+import { PumpAgent } from "@nirholas/agent-payments-sdk/solana";
 ```
 
 ### EVM cross-chain (new)
 
 ```ts
-import { CrossChainPaymentClient } from "@pump-fun/agent-payments-crosschain-sdk";
+import { CrossChainPaymentClient } from "@nirholas/agent-payments-sdk";
 
 const client = new CrossChainPaymentClient({
   rpcEndpoint: "https://api.mainnet-beta.solana.com",
@@ -53,7 +53,7 @@ const result = await client.waitForArrival(receipt);
 ### x402 EVM auto-pay
 
 ```ts
-import { createEvmX402Fetch } from "@pump-fun/agent-payments-crosschain-sdk/x402";
+import { createEvmX402Fetch } from "@nirholas/agent-payments-sdk/x402";
 
 const fetch = createEvmX402Fetch({ walletClient });
 const res = await fetch("https://agent.example/api/chat", { method: "POST" });

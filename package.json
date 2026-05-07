@@ -1,5 +1,5 @@
 {
-  "name": "@pump-fun/agent-payments-crosschain-sdk",
+  "name": "@nirholas/agent-payments-sdk",
   "version": "0.1.0",
   "description": "Cross-chain payments SDK for Pump Agent — Solana-native + EVM cross-chain support",
   "publishConfig": {
