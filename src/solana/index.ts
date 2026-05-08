@@ -39,8 +39,19 @@ export {
 } from "./pdas";
 
 // Classes
-export { PumpAgentOffline } from "./PumpAgentOffline";
+export {
+  PumpAgentOffline,
+  USDC_MINT,
+  decodeBondingCurveQuoteMint,
+  resolveTokenProgramForMint,
+} from "./PumpAgentOffline";
 export { PumpAgent } from "./PumpAgent";
+
+// Error types
+export {
+  CurrencyNotSupportedError,
+  JupiterUnavailableError,
+} from "./errors";
 
 // Decoders
 export {

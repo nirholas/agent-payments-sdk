@@ -1,4 +1,5 @@
 import {
+  type AccountMeta,
   ComputeBudgetProgram,
   PublicKey,
   SystemProgram,
@@ -8,6 +9,7 @@ import {
 import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   NATIVE_MINT,
   createAssociatedTokenAccountIdempotentInstruction,
   createSyncNativeInstruction,
@@ -39,6 +41,67 @@ import type {
   UpdateBuybackBpsParams,
   WithdrawParams,
 } from "./types";
+import {
+  CurrencyNotSupportedError,
+  JupiterUnavailableError,
+} from "./errors";
+
+/**
+ * USDC mainnet mint — recognised quote currency for pump-fun USDC coins.
+ */
+export const USDC_MINT = new PublicKey(
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+);
+
+/** Anchor account discriminator length (8 bytes). */
+const ANCHOR_DISCRIMINATOR_LEN = 8;
+
+/**
+ * Offset of `quote_mint` inside a pump bonding-curve account:
+ *  - 8 bytes  Anchor discriminator
+ *  - 5 * u64  reserves / supply  (40 bytes)
+ *  - bool     complete           (1 byte)
+ *  - pubkey   creator            (32 bytes)
+ *  - bool     is_mayhem_mode     (1 byte)
+ *  - bool     is_cashback_coin   (1 byte)
+ *  → 83
+ */
+const BONDING_CURVE_QUOTE_MINT_OFFSET =
+  ANCHOR_DISCRIMINATOR_LEN + 5 * 8 + 1 + 32 + 1 + 1;
+
+/**
+ * Decode the `quote_mint` field from a raw pump BondingCurve account
+ * buffer. Returns NATIVE_MINT for legacy accounts shorter than the
+ * post-multi-quote layout (those are SOL-only by definition).
+ */
+export function decodeBondingCurveQuoteMint(data: Buffer): PublicKey {
+  if (data.length < BONDING_CURVE_QUOTE_MINT_OFFSET + 32) {
+    return NATIVE_MINT;
+  }
+  const slice = data.subarray(
+    BONDING_CURVE_QUOTE_MINT_OFFSET,
+    BONDING_CURVE_QUOTE_MINT_OFFSET + 32,
+  );
+  const pk = new PublicKey(slice);
+  return PublicKey.default.equals(pk) ? NATIVE_MINT : pk;
+}
+
+/**
+ * Resolve the SPL token program (classic or Token-2022) for a mint.
+ * Falls back to TOKEN_PROGRAM_ID for SOL/USDC and on RPC misses.
+ */
+export async function resolveTokenProgramForMint(
+  connection: Connection,
+  mint: PublicKey,
+): Promise<PublicKey> {
+  if (mint.equals(NATIVE_MINT) || mint.equals(USDC_MINT)) {
+    return TOKEN_PROGRAM_ID;
+  }
+  const info = await connection.getAccountInfo(mint);
+  if (!info) return TOKEN_PROGRAM_ID;
+  if (info.owner.equals(TOKEN_2022_PROGRAM_ID)) return TOKEN_2022_PROGRAM_ID;
+  return TOKEN_PROGRAM_ID;
+}
 
 function toBN(value: bigint | number | string): BN {
   return new BN(value.toString());
@@ -428,5 +491,196 @@ export class PumpAgentOffline {
         globalConfig,
       })
       .instruction();
+  }
+
+  // ─── Multi-currency / USDC-aware helpers ────────────────────────────────
+
+  private static readonly _coinQuoteMintCache = new Map<string, PublicKey>();
+
+  static async getCoinQuoteMint(
+    connection: Connection,
+    baseMint: PublicKey,
+  ): Promise<PublicKey> {
+    const key = baseMint.toBase58();
+    const cached = PumpAgentOffline._coinQuoteMintCache.get(key);
+    if (cached) return cached;
+
+    const [bondingCurve] = getBondingCurvePDA(baseMint);
+    const info = await connection.getAccountInfo(bondingCurve);
+    if (!info) {
+      throw new Error(
+        `Bonding curve account not found for mint ${key} (PDA ${bondingCurve.toBase58()})`,
+      );
+    }
+
+    const quoteMint = decodeBondingCurveQuoteMint(info.data);
+    PumpAgentOffline._coinQuoteMintCache.set(key, quoteMint);
+    return quoteMint;
+  }
+
+  static _clearCoinQuoteMintCache(): void {
+    PumpAgentOffline._coinQuoteMintCache.clear();
+  }
+
+  async acceptPaymentForCoin(params: {
+    connection: Connection;
+    user: PublicKey;
+    userTokenAccount: PublicKey;
+    baseMint: PublicKey;
+    amount: BN;
+    memo: BN;
+    startTime: BN;
+    endTime: BN;
+  }): Promise<TransactionInstruction> {
+    const { connection, user, userTokenAccount, baseMint, amount, memo, startTime, endTime } =
+      params;
+
+    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
+    const tokenProgram = await resolveTokenProgramForMint(connection, quoteMint);
+
+    return this.acceptPayment({
+      user,
+      userTokenAccount,
+      currencyMint: quoteMint,
+      amount,
+      memo,
+      startTime,
+      endTime,
+      tokenProgram,
+    });
+  }
+
+  async distributeAndBuybackForCoin(params: {
+    connection: Connection;
+    user: PublicKey;
+    globalBuybackAuthority: PublicKey;
+    baseMint: PublicKey;
+    swapProgramToInvoke: PublicKey;
+    swapInstructionData: Buffer;
+    remainingAccounts: AccountMeta[];
+  }): Promise<[TransactionInstruction, TransactionInstruction]> {
+    const {
+      connection,
+      user,
+      globalBuybackAuthority,
+      baseMint,
+      swapProgramToInvoke,
+      swapInstructionData,
+      remainingAccounts,
+    } = params;
+
+    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
+    const tpCurrency = await resolveTokenProgramForMint(connection, quoteMint);
+
+    const [distributeIx] = await this.distributePayments({
+      user,
+      currencyMint: quoteMint,
+      tokenProgram: tpCurrency,
+    });
+
+    const buybackIx = await this.buybackTrigger({
+      globalBuybackAuthority,
+      currencyMint: quoteMint,
+      swapProgramToInvoke,
+      swapInstructionData,
+      remainingAccounts,
+      tokenProgramCurrency: tpCurrency,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    });
+
+    return [distributeIx, buybackIx];
+  }
+
+  static async buildJupiterSwapData(params: {
+    inputMint: PublicKey;
+    outputMint: PublicKey;
+    amount: BN;
+    slippageBps?: number;
+    jupiterApiBase?: string;
+  }): Promise<Buffer> {
+    const {
+      inputMint,
+      outputMint,
+      amount,
+      slippageBps = 50,
+      jupiterApiBase = "https://quote-api.jup.ag/v6",
+    } = params;
+
+    const baseUrl = jupiterApiBase.replace(/\/+$/, "");
+    const amountStr = amount.toString();
+
+    const retryFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+      let lastErr: unknown;
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) {
+          await new Promise<void>((r) => setTimeout(r, 200 * 2 ** (i - 1)));
+        }
+        try {
+          const resp = await fetch(url, init);
+          if (resp.ok) return resp;
+          lastErr = new JupiterUnavailableError(
+            `HTTP ${resp.status} from Jupiter API`,
+            url,
+            resp.status,
+          );
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      throw new JupiterUnavailableError(
+        `Jupiter unavailable after 3 attempts: ${msg}`,
+        url,
+      );
+    };
+
+    const quoteUrl =
+      `${baseUrl}/quote` +
+      `?inputMint=${inputMint.toBase58()}` +
+      `&outputMint=${outputMint.toBase58()}` +
+      `&amount=${amountStr}` +
+      `&slippageBps=${slippageBps}`;
+
+    const quoteResp = await retryFetch(quoteUrl);
+    const quoteResponse = (await quoteResp.json()) as unknown;
+
+    const swapUrl = `${baseUrl}/swap-instructions`;
+    const swapResp = await retryFetch(swapUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ quoteResponse, wrapAndUnwrapSol: false }),
+    });
+
+    const swapJson = (await swapResp.json()) as { swapInstruction?: { data?: string } };
+    const dataB64 = swapJson.swapInstruction?.data;
+    if (!dataB64) {
+      throw new JupiterUnavailableError(
+        "Jupiter swap-instructions response missing swapInstruction.data",
+        swapUrl,
+      );
+    }
+    return Buffer.from(dataB64, "base64");
+  }
+
+  async validateCurrencySupport(params: {
+    connection: Connection;
+    baseMint: PublicKey;
+  }): Promise<{ supported: boolean; quoteMint: PublicKey; registeredCurrencies: PublicKey[] }> {
+    const { connection, baseMint } = params;
+
+    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
+
+    const [globalConfigPda] = getGlobalConfigPDA();
+    const cfg = await this.program.account.GlobalConfig.fetch(globalConfigPda);
+
+    const registeredCurrencies = (cfg.supportedCurrenciesMint as PublicKey[]).filter(
+      (m) => !PublicKey.default.equals(m),
+    );
+
+    const supported =
+      quoteMint.equals(NATIVE_MINT) ||
+      registeredCurrencies.some((m) => m.equals(quoteMint));
+
+    return { supported, quoteMint, registeredCurrencies };
   }
 }
