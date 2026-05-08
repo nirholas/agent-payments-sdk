@@ -111,6 +111,15 @@ export type {
   EventSubscription,
 } from "./events";
 
+// Bonding-curve market data (price / market cap, SOL + USDC quotes)
+export { PumpMarketData } from "./PumpMarketData.js";
+export type { BondingCurveMarketData } from "./PumpMarketData.js";
+export {
+  humanReadablePrice,
+  estimatePriceImpact,
+  quoteToGraduation,
+} from "./PumpMarketData.js";
+
 // solana-agent-kit plugin
 export { PumpAgentPaymentsPlugin } from "./solana-agent-kit";
 
