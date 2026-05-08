@@ -214,7 +214,6 @@ Tokenized agent coins must have an initial buy > 0 (non-zero `--usdc-amount`).
 | Operation | Script | Example |
 |-----------|--------|---------|
 | Check if USDC whitelisted | `scripts/check-usdc-whitelist.mjs` | `node scripts/check-usdc-whitelist.mjs --network mainnet` |
-| Fetch coin state (HTTP) | `scripts/fetch-coin.mjs` | `node scripts/fetch-coin.mjs --mint <MINT> --subset` |
 | Simulate (smoke-test) | `scripts/simulate-create-usdc-coin.mjs` | `node scripts/simulate-create-usdc-coin.mjs --user <PK> --name "T" --symbol "T" --metadata-uri "data:application/json,{}" --usdc-amount 1000000` |
 | Build + partial-sign tx | `scripts/build-create-usdc-coin-tx.mjs` | `node scripts/build-create-usdc-coin-tx.mjs --user <PK> --name "Coin" --symbol "CN" --metadata-uri <URI> --usdc-amount 1000000 --mint-keypair-out ./mint.json` |
 

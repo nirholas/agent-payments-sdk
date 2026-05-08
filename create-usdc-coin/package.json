@@ -6,7 +6,6 @@
   "description": "Create USDC-paired coins on pump.fun",
   "engines": { "node": ">=18" },
   "scripts": {
-    "fetch-coin": "node scripts/fetch-coin.mjs",
     "check-usdc-whitelist": "node scripts/check-usdc-whitelist.mjs",
     "simulate-create": "node scripts/simulate-create-usdc-coin.mjs",
     "build-create-usdc-coin-tx": "node scripts/build-create-usdc-coin-tx.mjs"
