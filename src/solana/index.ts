@@ -117,6 +117,10 @@ export { PumpAgentPaymentsPlugin } from "./solana-agent-kit";
 // x402 protocol
 export * as x402 from "./x402";
 
+// Pump bonding-curve program (`6EF8rrec...`) event parser & subscriber.
+// Distinct from agent-payments events above.
+export * as pumpEvents from "./pump-events.js";
+
 // Legacy 1.0.7 program (`pUmPFn9...`) — coexists with the modern 3.0.x
 // program above. Use these classes when interacting with coins whose
 // tokenized agent was registered via @pump-fun/pump-sdk's
