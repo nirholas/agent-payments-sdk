@@ -89,9 +89,9 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 | Operation                                | Script                               | Example                                                                                                                                                                                                                                                                  |
 | ---------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Fetch coin state (HTTP)                  | `scripts/fetch-coin.mjs`             | `node scripts/fetch-coin.mjs --mint <MINT> --subset`                                                                                                                                                                                                                     |
-| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--cashback] [--tokenized-agent --buyback-bps 5000] [--quote-mint <USDC>] [--alt-address <PUBKEY>]`               |
+| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--cashback] [--tokenized-agent --buyback-bps 5000] [--legacy-agent] [--quote-mint <USDC>] [--alt-address <PUBKEY>]`               |
 
-- Run any script with `--help` for full flags (`--mayhem-mode`, `--tokenized-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
+- Run any script with `--help` for full flags (`--mayhem-mode`, `--tokenized-agent`, `--legacy-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
 - Tx builders print **one JSON object** on stdout with `transaction` (base64-encoded VersionedTransaction, partially signed when the mint keypair is used on create). **Never** pass end-user private keys into these scripts.
 - **OpenClaw:** If YAML `metadata` ever fails to parse, collapse `metadata` to a single-line JSON object per [OpenClaw skills](https://docs.openclaw.ai/skills/); optional `metadata.openclaw.requires.env: ["SOLANA_RPC_URL"]` can gate load-time eligibility.
 
@@ -173,6 +173,20 @@ Full transaction building (compute budget, blockhash, partial sign) is implement
 | `cashback`   | `boolean`   | Enable cashback rewards; optional, default `false`                     |
 
 When `--tokenized-agent` is enabled, an additional `PumpAgentOffline.load(mint).create(...)` instruction (from `@pump-fun/agent-payments-sdk`) is appended after the create+buy instructions. The `--buyback-bps` flag controls the agent buyback percentage in basis points (default: 5000 = 50%). Tokenized agent coins **must** have an initial buy > 0 SOL.
+
+### Choosing legacy vs modern agent program
+
+There are two deployed `pump_agent_payments` programs on mainnet. `--tokenized-agent` defaults to the modern 3.0.x program; pass `--legacy-agent` to register the coin under the legacy 1.0.7 program instead.
+
+| Program | On-chain ID                                    | Selected by                            | Use when                                                                                  |
+| ------- | ---------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 3.0.x   | `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7` | `--tokenized-agent` (default)          | All new coins. Recommended.                                                               |
+| 1.0.7   | `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`  | `--tokenized-agent --legacy-agent`     | Downstream tooling explicitly requires 1.0.7 (e.g. an indexer that hardcoded `pUmPFn9…`, or compatibility with `@pump-fun/pump-sdk`'s `isTokenizedAgent: true` path which targets 1.0.7 internally). |
+
+- The choice is **irreversible per coin** — the agent state account is a PDA seeded under the chosen program, so a coin registered under one program cannot be migrated to the other.
+- `--legacy-agent` requires `--tokenized-agent` and is incompatible with non-SOL `--quote-mint` (the 1.0.7 program has no `quote_mint` field).
+- The script's JSON output exposes `agentProgram` (`"3.0.x"`, `"1.0.7"`, or `null`) and `agentProgramId` (the on-chain pubkey) to make the choice auditable from the receipt.
+- The legacy module is loaded from the workspace SDK via the `@nirholas/agent-payments-sdk/solana/legacy-agent-payments` subpath export (declared as a `file:..` dependency in `package.json`). Run `npm run build` at the repo root before invoking this script with `--legacy-agent` so the SDK's `dist/` is populated.
 
 Token amount for the initial buy is derived with `getBuyTokenAmountFromSolAmount` (`mintSupply: null`, `bondingCurve: null`).
 
@@ -310,7 +324,7 @@ Then confirm as usual with `connection.confirmTransaction`.
 ## End-to-end flow
 
 1. Confirm coin name, symbol, metadata URI, signer wallet, and initial buy amount; set `SOLANA_RPC_URL`. Ask about mayhem mode, tokenized agent (with buyback percentage), cashback, and front-runner protection preferences.
-2. Use `POST /agents/create-coin` to build the transaction. Only use `build-create-coin-tx.mjs` if the user explicitly requests scripts; capture `transaction`. Add `--mayhem-mode`, `--tokenized-agent --buyback-bps <BPS>`, `--cashback`, and/or `--front-runner-protection` (with optional `--tip-sol`) as needed.
+2. Use `POST /agents/create-coin` to build the transaction. Only use `build-create-coin-tx.mjs` if the user explicitly requests scripts; capture `transaction`. Add `--mayhem-mode`, `--tokenized-agent --buyback-bps <BPS>` (and `--legacy-agent` only when downstream tooling requires the 1.0.7 program — see "Choosing legacy vs modern agent program"), `--cashback`, and/or `--front-runner-protection` (with optional `--tip-sol`) as needed.
 3. Deserialize with `@solana/web3.js` `VersionedTransaction.deserialize`, have user sign (and co-sign create tx).
 4. **Send the transaction:** If `frontRunnerProtection` is `true` in the script output JSON, send **only** to Jito endpoints (see "Transaction assembly and send" above). Otherwise use `sendRawTransaction` + `confirmTransaction`.
 5. Keep `mint-keypair-out` secure; it is required for any mint-authority operations later.

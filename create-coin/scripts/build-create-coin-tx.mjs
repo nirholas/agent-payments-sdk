@@ -16,7 +16,19 @@ import {
   OnlinePumpSdk,
   getBuyTokenAmountFromSolAmount,
 } from "@pump-fun/pump-sdk";
-import { PumpAgentOffline } from "@pump-fun/agent-payments-sdk";
+import {
+  PumpAgentOffline,
+  PROGRAM_ID as MODERN_AGENT_PROGRAM_ID,
+} from "@pump-fun/agent-payments-sdk";
+// Legacy 1.0.7 program (`pUmPFn9...`) is vendored in the workspace SDK at
+// src/solana/legacy-agent-payments and exposed via the
+// `@nirholas/agent-payments-sdk/solana/legacy-agent-payments` subpath export.
+// Run `npm run build` at the repo root before invoking this script with
+// --legacy-agent so the SDK's dist artifacts exist.
+import {
+  LegacyPumpAgentOffline,
+  LEGACY_AGENT_PAYMENTS_PROGRAM_ID,
+} from "@nirholas/agent-payments-sdk/solana/legacy-agent-payments";
 import { getConnection } from "./lib/env.mjs";
 import {
   exitWithHelp,
@@ -51,6 +63,10 @@ Optional:
   --mayhem-mode             Enable mayhem mode (default: off)
   --cashback                Enable cashback for this coin (default: off)
   --tokenized-agent         Enable tokenized agent (default: off; requires initial buy > 0)
+  --legacy-agent            Initialize agent on the legacy 1.0.7 program
+                            (pUmPFn9...) instead of the default 3.0.x
+                            program (AgenTMiC...). Requires --tokenized-agent
+                            and is incompatible with non-SOL --quote-mint.
   --buyback-bps <int>       Buyback basis points for tokenized agent (default: ${DEFAULT_BUYBACK_BPS} = 50%; requires --tokenized-agent)
   --quote-mint <PUBKEY>     Non-SOL quote mint (e.g. USDC). When set, routes through createV2AndBuyV2.
                             --sol-lamports is reinterpreted as quote-base-units.
@@ -77,6 +93,7 @@ async function main() {
       "mayhem-mode": { type: "boolean", default: false },
       cashback: { type: "boolean", default: false },
       "tokenized-agent": { type: "boolean", default: false },
+      "legacy-agent": { type: "boolean", default: false },
       "buyback-bps": { type: "string" },
       "quote-mint": { type: "string" },
       "alt-address": { type: "string" },
@@ -105,6 +122,7 @@ async function main() {
   const mayhemMode = Boolean(values["mayhem-mode"]);
   const cashback = Boolean(values.cashback);
   const tokenizedAgent = Boolean(values["tokenized-agent"]);
+  const legacyAgent = Boolean(values["legacy-agent"]);
   const buybackBps = values["buyback-bps"] != null
     ? parsePositiveInt(values["buyback-bps"], DEFAULT_BUYBACK_BPS)
     : DEFAULT_BUYBACK_BPS;
@@ -117,6 +135,14 @@ async function main() {
 
   if (tokenizedAgent && solLamports <= 0) {
     throw new Error("--tokenized-agent requires --sol-lamports > 0 (tokenized agent coins cannot be free)");
+  }
+  if (legacyAgent && !tokenizedAgent) {
+    throw new Error("--legacy-agent requires --tokenized-agent");
+  }
+  if (legacyAgent && useV2Quote) {
+    throw new Error(
+      "--legacy-agent does not support non-SOL quote mints (1.0.7 program lacks quote_mint field). Drop --quote-mint or omit --legacy-agent.",
+    );
   }
 
   const defaultComputeUnits = CREATE_AND_BUY_COMPUTE_UNITS
@@ -211,14 +237,23 @@ async function main() {
   }
 
   if (tokenizedAgent) {
-    const agentInitializeIx = await PumpAgentOffline.load(mint).create({
-      authority: user,
+    const agentInitializeIx = await buildAgentInitializeIx({
+      legacy: legacyAgent,
       mint,
-      agentAuthority: user,
+      user,
       buybackBps,
     });
     sdkInstructions.push(agentInitializeIx);
   }
+
+  const agentProgramLabel = tokenizedAgent
+    ? legacyAgent
+      ? "1.0.7"
+      : "3.0.x"
+    : null;
+  const agentProgramId = tokenizedAgent
+    ? (legacyAgent ? LEGACY_AGENT_PAYMENTS_PROGRAM_ID : MODERN_AGENT_PROGRAM_ID).toBase58()
+    : null;
 
   const tx = await buildAndPartialSignTx({
     connection,
@@ -251,7 +286,19 @@ async function main() {
     cashback,
     tokenizedAgent,
     ...(tokenizedAgent ? { buybackBps } : {}),
+    agentProgram: agentProgramLabel,
+    agentProgramId,
     frontRunnerProtection,
+  });
+}
+
+async function buildAgentInitializeIx({ legacy, mint, user, buybackBps }) {
+  const Client = legacy ? LegacyPumpAgentOffline : PumpAgentOffline;
+  return Client.load(mint).create({
+    authority: user,
+    mint,
+    agentAuthority: user,
+    buybackBps,
   });
 }
 

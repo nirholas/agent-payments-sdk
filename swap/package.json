@@ -17,7 +17,8 @@
     "build-claim-cashback-v2-tx": "node scripts/build-claim-cashback-v2-tx.mjs",
     "build-buy-amm-tx": "node scripts/build-buy-amm-tx.mjs",
     "build-sell-amm-tx": "node scripts/build-sell-amm-tx.mjs",
-    "print-balances": "node scripts/print-balances.mjs"
+    "print-balances": "node scripts/print-balances.mjs",
+    "test:devnet": "node test/v2-flows.test.mjs"
   },
   "dependencies": {
     "@pump-fun/pump-sdk": "^1.35.0",
