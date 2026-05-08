@@ -1,10 +1,13 @@
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * Mirrors `getStaticRandomFeeRecipientForBuyback` in @pump-fun/pump-sdk
- * (1.35.0). The list is embedded in the SDK's compiled JS; not exported.
+ * Buyback fee recipients pool. The canonical TypeScript list lives in
+ * src/solana/constants.ts and is shared with the PumpTradeClient. This
+ * file mirrors it for the standalone .mjs scripts (which can't import
+ * .ts at runtime). Keep both in sync.
+ *
  * Source: pump-public-docs/docs/FEE_RECIPIENTS.md and the SDK constant
- * CURRENT_FEE_RECIPIENTS_FOR_BUYBACK.
+ * CURRENT_FEE_RECIPIENTS_FOR_BUYBACK in @pump-fun/pump-sdk 1.35.0.
  */
 const BUYBACK_FEE_RECIPIENTS = [
   "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",
@@ -42,3 +45,5 @@ export function pickBuybackFeeRecipient() {
     Math.floor(Math.random() * BUYBACK_FEE_RECIPIENTS.length)
   ];
 }
+
+export { BUYBACK_FEE_RECIPIENTS };

@@ -133,3 +133,19 @@ export * as x402 from "./x402";
 // tokenized agent was registered via @pump-fun/pump-sdk's
 // `isTokenizedAgent: true` flag (which targets the legacy program).
 export * as legacyAgentPayments from "./legacy-agent-payments/index.js";
+
+// v2 bonding-curve trade client
+export { PumpTradeClient } from "./PumpTradeClient.js";
+export type {
+  BuyResult,
+  SellResult,
+  ExactQuoteResult,
+  BuyQuote,
+  SellQuote,
+} from "./types.js";
+export {
+  CoinGraduatedError,
+  CoinNotFoundError,
+  InsufficientLiquidityError,
+  UnsupportedQuoteMintError,
+} from "./PumpTradeClient.js";
