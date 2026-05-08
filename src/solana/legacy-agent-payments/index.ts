@@ -47,6 +47,7 @@ export type {
   LegacyAcceptPaymentSimpleParams,
   LegacyAgentBalances,
   LegacyBuybackTriggerParams,
+  LegacyCloseAccountParams,
   LegacyCreateParams,
   LegacyDistributePaymentsParams,
   LegacyExtendAccountParams,

@@ -25,6 +25,7 @@ import type {
   LegacyAcceptPaymentParams,
   LegacyAcceptPaymentSimpleParams,
   LegacyBuybackTriggerParams,
+  LegacyCloseAccountParams,
   LegacyCreateParams,
   LegacyDistributePaymentsParams,
   LegacyExtendAccountParams,
@@ -312,6 +313,17 @@ export class LegacyPumpAgentOffline {
     return this.program.methods
       .agentUpdateAuthority(newAuthority)
       .accountsPartial({ authority, tokenAgentPayments })
+      .instruction();
+  }
+
+  async closeAccount(
+    params: LegacyCloseAccountParams,
+  ): Promise<TransactionInstruction> {
+    const { account, user } = params;
+    const [globalConfig] = getGlobalConfigPDA();
+    return this.program.methods
+      .closeAccount()
+      .accountsPartial({ account, user, globalConfig })
       .instruction();
   }
 }

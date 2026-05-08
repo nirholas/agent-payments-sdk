@@ -73,6 +73,13 @@ export interface LegacyUpdateAuthorityParams {
   newAuthority: PublicKey;
 }
 
+export interface LegacyCloseAccountParams {
+  /** The account to close (writable). */
+  account: PublicKey;
+  /** Signer; receives the reclaimed lamports. */
+  user: PublicKey;
+}
+
 export interface LegacyVaultBalance {
   address: PublicKey;
   balance: bigint;
