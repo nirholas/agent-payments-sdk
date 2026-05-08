@@ -182,7 +182,7 @@ Pass `--quote-mint <PUBKEY>` to mint a coin paired against any SPL mint other th
 
 USDC mainnet: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
 
-> **Whitelist gating:** the bonding-curve program admins maintain a `quote_mint` whitelist. Pump.fun announced (2026-05-07) that USDC creation is rolled out but **not yet enabled** — expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a non-wSOL quote will fail with `QuoteMintNotWhitelisted`.
+> **Whitelist gating:** the bonding-curve program admins maintain a `quote_mint` whitelist. USDC creation is currently gated on-chain (not yet enabled as of 2026-05-08); monitor `global.whitelistedQuoteMints` for changes. Until enabled, `create_v2` with a non-wSOL quote will fail with `UnsupportedQuoteMint` (error 6063 / 0x17af). The closely related `QuoteMintNotWhitelisted` (6068) would fire only if USDC were eligible but subsequently removed from the whitelist.
 
 ## Compute units and priority fees
 

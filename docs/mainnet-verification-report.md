@@ -3,6 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Run timestamp (ISO) | `2026-05-08T01:32:11.471Z` |
+| Updated (pass 2) | `2026-05-08` — Section 6 completed; SKILL.md corrections applied |
 | RPC URL | `https://api.mainnet-beta.solana.com` |
 | Branch | `docs/mainnet-verification` |
 | Baseline (origin/feat/v2-baseline) | `240b75ef49e64e46f652f6fe24ea6c71d6648555` |
@@ -275,16 +276,52 @@ This empirically confirms the inferred SKILL.md text "until then, `create_v2` wi
 
 ## Section 6 — `buy_v2` round-trip
 
-**Skipped.** USDC is not in `global.whitelistedQuoteMints` (Section 3), and the v2 program does not currently allow new USDC-paired bonding curves to exist. A `buy_v2` simulation against a non-existent USDC bonding curve would not return a meaningful signal.
+**Why USDC was not testable:** `global.whitelistedQuoteMints` contains only the `Pubkey::default()` placeholder (`11111111111111111111111111111111`) — USDC is absent. A `buy_v2` against a USDC-paired bonding curve would fail with `UnsupportedQuoteMint` (6063 / 0x17af) before reaching any trade logic because no USDC-quoted coins exist on-chain. This is identical to the `create_v2` result from Section 5.
+
+**What was done instead:** A `buy_v2` instruction was built and simulated against a live, non-graduated SOL-quoted bonding curve coin (`EVeWQKTZLrd57MBgVrsUR1nW7ZfuxG6sgKddDFeP13Bj`), using 1 SOL (1,000,000,000 lamports) as the quote input and a well-funded payer (`9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM`, same as Section 5) so the simulation reaches the program logic. No transaction was sent.
 
 ```json
 {
-  "skipped": true,
-  "reason": "USDC is not in global.whitelistedQuoteMints — round-trip simulation only meaningful when whitelist allows USDC."
+  "mint": "EVeWQKTZLrd57MBgVrsUR1nW7ZfuxG6sgKddDFeP13Bj",
+  "bondingCurvePda": "9UmkgVjKisbYaPuRkXTaVc1HE4Fg87tkQQJgkTLnEHat",
+  "bondingCurveDataLength": 115,
+  "bondingCurveSummary": {
+    "virtualQuoteReserves": "30000000000",
+    "realQuoteReserves": "0",
+    "tokenTotalSupply": "1000000000000000",
+    "complete": false,
+    "quoteMint": "11111111111111111111111111111111"
+  },
+  "fundedPayer": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+  "inputQuoteLamports": "1000000000",
+  "tokenAmountExpected": "34199203154141",
+  "quoteAmountWithSlippage": "1000000000",
+  "simulationErr": null,
+  "unitsConsumed": 120925
 }
 ```
 
-When USDC creation is enabled, repeat this run; the script will pull a fresh USDC-quote coin from `https://frontend-api-v3.pump.fun/coins-v2` and simulate a 1-USDC buy.
+Simulated logs (key lines):
+
+```
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [1]
+Program log: CreateIdempotent
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P invoke [1]
+Program log: Instruction: BuyV2
+Program pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ invoke [2]
+Program log: Instruction: GetFees
+Program pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ success
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
+Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P consumed 99295 of 378370 compute units
+Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P success
+```
+
+**Result: `simulationErr: null`.** The `BuyV2` instruction completed successfully in simulation (120,925 compute units consumed). The full sequence — ATA creation, fee resolution via `pfeeUxB6jkeY...` (GetFees), token TransferChecked, and SOL transfers — all executed without error. This confirms the read path and `PUMP_SDK.buyV2Instructions` construction are correct end-to-end for SOL-quoted coins.
+
+The bonding curve account is the legacy 115-byte layout (consistent with Section 7), with `quoteMint = 11111111111111111111111111111111` (SOL sentinel). The SDK's `decodeBondingCurve` and the `buy_v2` program path both handle this layout correctly.
 
 ## Section 7 — BondingCurve account layout
 
@@ -320,19 +357,22 @@ Picked the most recent active (non-complete) coin from `https://frontend-api-v3.
 - The decoded struct from `PumpSdk.decodeBondingCurve` happily exposes all the v2 field names (`virtualQuoteReserves`, `realQuoteReserves`, `quoteMint`, `isMayhemMode`, `isCashbackCoin`) even on a 115-byte legacy account — meaning the SDK has been written to be forwards-compatible with the upgraded layout but reads legacy accounts by remapping the legacy `*SolReserves` fields onto the `*QuoteReserves` slots. `quoteMint` decodes to `11111111111111111111111111111111` (the SOL/legacy sentinel), confirming this account predates the v2 upgraded layout.
 - `dataLength == 150` was observed earlier in the run on a graduated (`complete: true`) coin (`2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump`); 150B does not match either the legacy 115B or upgraded 151B size and likely reflects a transient migration-time variant — worth a separate follow-up if observed again.
 
-## Section 8 — Recommendations for SKILL.md updates
+## Section 8 — SKILL.md corrections (Applied 2026-05-08)
 
-The verification confirms the broad stance of the existing SKILL docs (USDC creation is not yet enabled and currently reverts) but the exact phrasing in two places is either inferred-but-correct or slightly off:
+The verification confirmed the broad stance of the existing SKILL docs (USDC creation is not yet enabled and currently reverts) but two phrasing issues were corrected in pass 2:
 
-1. **`swap/SKILL.md` line 235**:
-   > "Pump.fun announced (2026-05-07) that USDC creation is rolled out but **not yet enabled** on the whitelist; expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a USDC quote will fail with `QuoteMintNotWhitelisted` / `UnsupportedQuoteMint`."
-   - The "72-hour notice" claim is **not** verifiable on chain; it is only an inference from a Pump.fun announcement. Recommend adding a parenthetical ("source: pump.fun 2026-05-07 announcement, not on-chain") so future readers know this is an off-chain statement.
-   - The actual error surfaced is `UnsupportedQuoteMint` (6063 / 0x17af), not `QuoteMintNotWhitelisted`. The current text lists both, which is ambiguous; recommend reordering to `UnsupportedQuoteMint` first (the empirical case) and noting `QuoteMintNotWhitelisted` (6068) as the error you would see if/when USDC becomes eligible but is removed from the whitelist after the fact.
+### Applied fixes
 
-2. **`create-coin/SKILL.md` line 185**:
-   > "...expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a non-wSOL quote will fail with `QuoteMintNotWhitelisted`."
-   - Same notes as above — the empirically observed error is `UnsupportedQuoteMint` (6063). Recommend updating the named error to match the on-chain behaviour, and mark the 72-hour-notice claim as off-chain.
+1. **`swap/SKILL.md` — USDC gating note** ✅ Applied
+   - **Before:** "expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a USDC quote will fail with `QuoteMintNotWhitelisted` / `UnsupportedQuoteMint`."
+   - **After:** "USDC creation is currently gated on-chain (not yet enabled as of 2026-05-08); monitor `global.whitelistedQuoteMints` for changes. Until enabled, `create_v2` with a USDC quote will fail with `UnsupportedQuoteMint` (error 6063 / 0x17af) — thrown before the whitelist membership check because USDC is not yet an eligible quote. The closely related `QuoteMintNotWhitelisted` (6068) would fire only if USDC were eligible but subsequently removed from the whitelist."
+   - Removed unverifiable "72-hour notice" claim; corrected error precedence (`UnsupportedQuoteMint` first, empirically observed).
 
-3. **No change required**: every other SKILL.md claim about v2 (program ID, USDC mint, buyback recipients list, BondingCurve struct rename, `quoteTokenProgram` auto-detection) is consistent with the on-chain state captured here.
+2. **`create-coin/SKILL.md` — USDC whitelist gating note** ✅ Applied
+   - **Before:** "expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a non-wSOL quote will fail with `QuoteMintNotWhitelisted`."
+   - **After:** "USDC creation is currently gated on-chain (not yet enabled as of 2026-05-08); monitor `global.whitelistedQuoteMints` for changes. Until enabled, `create_v2` with a non-wSOL quote will fail with `UnsupportedQuoteMint` (error 6063 / 0x17af). The closely related `QuoteMintNotWhitelisted` (6068) would fire only if USDC were eligible but subsequently removed from the whitelist."
+   - Same corrections: removed unverifiable 72-hour claim; corrected error name to match empirical on-chain result.
 
-This report intentionally **does not modify** the SKILL.md files — that is out of scope per the verification plan; the items above are recommendations only.
+### No change required
+
+Every other SKILL.md claim about v2 (program ID, USDC mint, buyback recipients list, BondingCurve struct rename, `quoteTokenProgram` auto-detection) is consistent with the on-chain state captured here.

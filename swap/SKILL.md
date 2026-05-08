@@ -232,7 +232,7 @@ Quote-mint resolution is identical to the rust client (`vendor/pump-rust-client/
 
 USDC mainnet mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
 
-> **USDC-paired creation gating:** the program supports `quote_mint` whitelist administration via `add_quote_mint`/`remove_quote_mint`. Pump.fun announced (2026-05-07) that USDC creation is rolled out but **not yet enabled** on the whitelist; expect a 72-hour notice before USDC-paired coin creation goes live. Until then, `create_v2` with a USDC quote will fail with `QuoteMintNotWhitelisted` / `UnsupportedQuoteMint`. The v2 trade scripts can be exercised against existing SOL coins today.
+> **USDC-paired creation gating:** the program supports `quote_mint` whitelist administration via `add_quote_mint`/`remove_quote_mint`. USDC creation is currently gated on-chain (not yet enabled as of 2026-05-08); monitor `global.whitelistedQuoteMints` for changes. Until enabled, `create_v2` with a USDC quote will fail with `UnsupportedQuoteMint` (error 6063 / 0x17af) — thrown before the whitelist membership check because USDC is not yet an eligible quote. The closely related `QuoteMintNotWhitelisted` (6068) would fire only if USDC were eligible but subsequently removed from the whitelist. The v2 trade scripts can be exercised against existing SOL coins today.
 
 ### Parameters (`buyV2Instructions` / `sellV2Instructions`)
 
