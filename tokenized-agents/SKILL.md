@@ -32,17 +32,17 @@ single mint therefore has at most one agent record, on exactly one program.
   [`createV2AndBuyInstructions({ isTokenizedAgent: true })`](../vendor/pump-sdk-npm/src/sdk.ts)
   appends an `agent_initialize` ix from `@pump-fun/agent-payments-sdk@1.0.7`,
   which `pump-sdk@1.35.0` pins as a transitive dependency. The resulting agent
-  lives on `pUmPFn9...`. This is the historical default for any caller that
+  lives on `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`. This is the historical default for any caller that
   uses `pump-sdk` directly without overriding the agent program.
 - **Current 3.0.x path.** Calling `PumpAgentOffline.load(mint).create(...)`
   from `@pump-fun/agent-payments-sdk@3.0.3` produces an `agent_initialize`
-  ix on `AgenTMiC...`. The bundled
+  ix on `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`. The bundled
   [`create-coin/scripts/build-create-coin-tx.mjs`](../create-coin/scripts/build-create-coin-tx.mjs)
   uses this path: it builds the create+buy via `pump-sdk` **without**
   `isTokenizedAgent`, then appends the 3.0.x agent ix manually when the
   `--tokenized-agent` flag is set. Coins created through this script — and
   through the equivalent `POST /agents/create-coin` API — register on
-  `AgenTMiC...`.
+  `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`.
 
 If a caller passes `isTokenizedAgent: true` to `pump-sdk` **and** appends a
 3.0.x ix, the transaction will fail with `account already in use` on the second
@@ -214,20 +214,20 @@ Args: none.
 |---|---|---|---|---|
 | 0 | `global_buyback_authority` | yes | yes | Hard-gated to the key recorded on `global_config.buyback_authority`. Wallet must NEVER auto-sign. |
 | 1 | `mint` | yes | no | The agent's mint (writable so the burn can decrement supply). |
-| 2 | `token_agent_payments` | no | no | |
-| 3 | `token_agent_payment_in_currency` | yes | no | unverified — requires source review whether the buyback reads the per-currency payment vault directly or only via `buyback_vault`. The IDL marks it writable; treat as required. |
+| 2 | `token_agent_payments` | no | no | PDA `[b"token-agent-payments", mint]`. Read-only; provides `mint` field for downstream PDA derivations. |
+| 3 | `token_agent_payment_in_currency` | yes | no | PDA `[b"payment-in-currency", mint, currency_mint]`. Marked writable; inferred from IDL constraints — not confirmed against on-chain Rust. The instruction does not include `buyback_vault` in its account list. Based on the account structure, `token_agent_payment_in_currency` is likely updated for balance accounting (e.g. recording the buyback amount or zeroing a counter) while the actual currency tokens are transferred from `burn_currency_mint_vault` (which for SPL Token currencies — USDC, wSOL — resolves to the same address as `buyback_vault`). |
 | 4 | `currency_mint` | no | no | |
-| 5 | `global_config` | no | no | |
+| 5 | `global_config` | no | no | PDA `[b"global-config"]`. |
 | 6 | `swap_program_to_invoke` | no | no | Caller-chosen, must be on the protocol allow-list (else `InvalidProgramToInvoke`). |
-| 7 | `burn_authority` | yes | no | PDA. |
-| 8 | `burn_mint_vault` | yes | no | PDA ATA — receives the swap output before burn. |
-| 9 | `burn_currency_mint_vault` | yes | no | PDA ATA — holds the currency-side balance during the swap. |
-| 10 | `token_program` | no | no | For the agent's mint. |
-| 11 | `token_program_currency` | no | no | For the currency mint (may differ — USDC is SPL Token, agent mints are Token-2022). |
-| 12 | `associated_token_program` | no | no | |
-| 13 | `system_program` | no | no | |
-| 14 | `event_authority` | no | no | PDA. |
-| 15 | `program` | no | no | |
+| 7 | `burn_authority` | yes | no | PDA `[b"buyback-authority", mint]`. Same seeds as `buyback_authority` in `agent_distribute_payments`; they are the same on-chain account, renamed here to avoid confusion with `global_buyback_authority`. |
+| 8 | `burn_mint_vault` | yes | no | ATA: owner = `burn_authority`, mint = agent's `mint`, token-program = `token_program`. Receives swap output before burn. |
+| 9 | `burn_currency_mint_vault` | yes | no | ATA: owner = `burn_authority`, mint = `currency_mint`, token-program = `token_program_currency`. This is the currency source for the swap. For SPL Token currencies (USDC, wSOL), this address is identical to `buyback_vault` from `agent_distribute_payments`. The naming differs because the 3.0.x program uses the runtime `token_program_currency` account in the ATA derivation rather than the hardcoded SPL Token program bytes used by `buyback_vault`. |
+| 10 | `token_program` | no | no | SPL Token or Token-2022 — for the agent's mint. |
+| 11 | `token_program_currency` | no | no | SPL Token or Token-2022 — for the currency mint (USDC is SPL Token; agent mints are typically Token-2022). |
+| 12 | `associated_token_program` | no | no | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`. |
+| 13 | `system_program` | no | no | `11111111111111111111111111111111`. |
+| 14 | `event_authority` | no | no | PDA `[b"__event_authority"]`. |
+| 15 | `program` | no | no | Self. |
 
 Args: `swap_instruction_data: bytes`. The bytes are forwarded verbatim to the
 `swap_program_to_invoke` CPI.
