@@ -591,99 +591,67 @@ export class PumpAgentOffline {
     return [distributeIx, buybackIx];
   }
 
-  /**
-   * Build Jupiter v6 swap-instruction data for `quoteMint → baseMint`. The
-   * input mint is auto-resolved from the bonding curve (SOL or USDC).
-   * Throws `JupiterUnavailableError` on any HTTP/parsing failure.
-   */
-  async buildBuybackSwapInstructionData(params: {
-    connection: Connection;
-    baseMint: PublicKey;
-    amount: BN | bigint | number | string;
+  static async buildJupiterSwapData(params: {
+    inputMint: PublicKey;
+    outputMint: PublicKey;
+    amount: BN;
     slippageBps?: number;
-    /** Optional override of the wallet that will execute the swap. */
-    userPublicKey?: PublicKey;
-    /** Override the Jupiter base URL (testing). */
     jupiterApiBase?: string;
   }): Promise<Buffer> {
     const {
-      connection,
-      baseMint,
+      inputMint,
+      outputMint,
       amount,
       slippageBps = 50,
       jupiterApiBase = "https://quote-api.jup.ag/v6",
     } = params;
 
-    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(
-      connection,
-      baseMint,
-    );
-    const inputMint = quoteMint;
-
-    const amountStr =
-      typeof amount === "object" && amount !== null && "toString" in amount
-        ? (amount as { toString: () => string }).toString()
-        : String(amount);
-
-    const [buybackAuthority] = getBuybackAuthorityPDA(this.mint);
-    const userPublicKey = params.userPublicKey ?? buybackAuthority;
-
     const baseUrl = jupiterApiBase.replace(/\/+$/, "");
+    const amountStr = amount.toString();
+
+    const retryFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+      let lastErr: unknown;
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) {
+          await new Promise<void>((r) => setTimeout(r, 200 * 2 ** (i - 1)));
+        }
+        try {
+          const resp = await fetch(url, init);
+          if (resp.ok) return resp;
+          lastErr = new JupiterUnavailableError(
+            `HTTP ${resp.status} from Jupiter API`,
+            url,
+            resp.status,
+          );
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+      throw new JupiterUnavailableError(
+        `Jupiter unavailable after 3 attempts: ${msg}`,
+        url,
+      );
+    };
 
     const quoteUrl =
       `${baseUrl}/quote` +
       `?inputMint=${inputMint.toBase58()}` +
-      `&outputMint=${baseMint.toBase58()}` +
+      `&outputMint=${outputMint.toBase58()}` +
       `&amount=${amountStr}` +
       `&slippageBps=${slippageBps}`;
 
-    let quoteResp: Response;
-    try {
-      quoteResp = await fetch(quoteUrl);
-    } catch (err) {
-      throw new JupiterUnavailableError(
-        `Jupiter quote request failed: ${(err as Error).message}`,
-        quoteUrl,
-      );
-    }
-    if (!quoteResp.ok) {
-      throw new JupiterUnavailableError(
-        `Jupiter quote returned HTTP ${quoteResp.status} for ` +
-          `${inputMint.toBase58()} → ${baseMint.toBase58()}`,
-        quoteUrl,
-        quoteResp.status,
-      );
-    }
-    const quoteResponse = await quoteResp.json();
+    const quoteResp = await retryFetch(quoteUrl);
+    const quoteResponse = (await quoteResp.json()) as unknown;
 
     const swapUrl = `${baseUrl}/swap-instructions`;
-    let swapResp: Response;
-    try {
-      swapResp = await fetch(swapUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          quoteResponse,
-          userPublicKey: userPublicKey.toBase58(),
-          wrapAndUnwrapSol: false,
-        }),
-      });
-    } catch (err) {
-      throw new JupiterUnavailableError(
-        `Jupiter swap-instructions request failed: ${(err as Error).message}`,
-        swapUrl,
-      );
-    }
-    if (!swapResp.ok) {
-      throw new JupiterUnavailableError(
-        `Jupiter swap-instructions returned HTTP ${swapResp.status}`,
-        swapUrl,
-        swapResp.status,
-      );
-    }
-    const swapJson = (await swapResp.json()) as {
-      swapInstruction?: { data?: string };
-    };
+    const swapResp = await retryFetch(swapUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ quoteResponse, wrapAndUnwrapSol: false }),
+    });
+
+    const swapJson = (await swapResp.json()) as { swapInstruction?: { data?: string } };
     const dataB64 = swapJson.swapInstruction?.data;
     if (!dataB64) {
       throw new JupiterUnavailableError(
@@ -694,57 +662,25 @@ export class PumpAgentOffline {
     return Buffer.from(dataB64, "base64");
   }
 
-  /**
-   * Validate that this SDK can interact with `baseMint`:
-   *   1. The bonding-curve account exists.
-   *   2. Its quote mint is in `GlobalConfig.supportedCurrenciesMint`
-   *      (NATIVE_MINT is implicitly supported by the program).
-   *
-   * Throws `CurrencyNotSupportedError` if the coin's quote mint is not
-   * registered in the agent-payments GlobalConfig.
-   */
-  async validateCoinCompatibility(
-    connection: Connection,
-    baseMint: PublicKey,
-  ): Promise<void> {
-    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(
-      connection,
-      baseMint,
-    );
-    if (quoteMint.equals(NATIVE_MINT)) return;
+  async validateCurrencySupport(params: {
+    connection: Connection;
+    baseMint: PublicKey;
+  }): Promise<{ supported: boolean; quoteMint: PublicKey; registeredCurrencies: PublicKey[] }> {
+    const { connection, baseMint } = params;
+
+    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
 
     const [globalConfigPda] = getGlobalConfigPDA();
-    const cfg = (await (this.program.account as any).globalConfig.fetch(
-      globalConfigPda,
-    )) as { supportedCurrenciesMint: PublicKey[] };
+    const cfg = await this.program.account.GlobalConfig.fetch(globalConfigPda);
 
-    const supported = cfg.supportedCurrenciesMint.filter(
-      (m: PublicKey) => !PublicKey.default.equals(m),
+    const registeredCurrencies = (cfg.supportedCurrenciesMint as PublicKey[]).filter(
+      (m) => !PublicKey.default.equals(m),
     );
 
-    const ok = supported.some((m: PublicKey) => m.equals(quoteMint));
-    if (!ok) {
-      throw new CurrencyNotSupportedError({
-        baseMint: baseMint.toBase58(),
-        quoteMint: quoteMint.toBase58(),
-        supportedMints: supported.map((m) => m.toBase58()),
-      });
-    }
-  }
+    const supported =
+      quoteMint.equals(NATIVE_MINT) ||
+      registeredCurrencies.some((m) => m.equals(quoteMint));
 
-  /**
-   * `create()` variant that, given a connection and a `coinBaseMint`,
-   * validates compatibility before delegating to `create()`.
-   *
-   * The on-chain `agentInitialize` instruction does not take a currency
-   * mint (it reads supported currencies from GlobalConfig at runtime),
-   * so this helper is purely a pre-flight safety net.
-   */
-  async createForCoin(
-    connection: Connection,
-    params: CreateParams & { coinBaseMint: PublicKey },
-  ): Promise<TransactionInstruction> {
-    await this.validateCoinCompatibility(connection, params.coinBaseMint);
-    return this.create(params);
+    return { supported, quoteMint, registeredCurrencies };
   }
 }
