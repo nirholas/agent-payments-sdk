@@ -64,6 +64,20 @@ export {
   decodeTokenAgentPayments,
 } from "./decoders";
 
+// Bonding curve decoder (v1 + v2)
+export {
+  decodeBondingCurve,
+  isV2BondingCurve,
+  isUsdcQuoted,
+  isSolQuoted,
+  getQuoteMintAddress,
+} from "./bondingCurveDecoder";
+export type {
+  BondingCurve,
+  BondingCurveV1,
+  BondingCurveV2,
+} from "./bondingCurveDecoder";
+
 // Types
 export type {
   PumpEnvironment,
@@ -144,6 +158,10 @@ export * as legacyAgentPayments from "./legacy-agent-payments/index.js";
 
 // v2 bonding-curve trade client
 export { PumpTradeClient } from "./PumpTradeClient.js";
+
+// Real-time price & market cap for pump.fun coins
+export { PumpMarketData } from "./PumpMarketData.js";
+export type { CoinPrice } from "./PumpMarketData.js";
 export type {
   BuyResult,
   SellResult,

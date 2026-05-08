@@ -1,6 +1,6 @@
 {
   "name": "@nirholas/agent-payments-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cross-chain payments SDK for Pump Agent — Solana-native + EVM cross-chain support",
   "publishConfig": {
     "access": "public"
@@ -22,7 +22,17 @@
       "import": "./dist/evm/index.js",
       "require": "./dist/evm/index.cjs"
     },
+    "./evm/index": {
+      "types": "./dist/evm/index.d.ts",
+      "import": "./dist/evm/index.js",
+      "require": "./dist/evm/index.cjs"
+    },
     "./solana": {
+      "types": "./dist/solana/index.d.ts",
+      "import": "./dist/solana/index.js",
+      "require": "./dist/solana/index.cjs"
+    },
+    "./solana/index": {
       "types": "./dist/solana/index.d.ts",
       "import": "./dist/solana/index.js",
       "require": "./dist/solana/index.cjs"
@@ -32,7 +42,27 @@
       "import": "./dist/solana/legacy-agent-payments/index.js",
       "require": "./dist/solana/legacy-agent-payments/index.cjs"
     },
+    "./solana/legacy-agent-payments/index": {
+      "types": "./dist/solana/legacy-agent-payments/index.d.ts",
+      "import": "./dist/solana/legacy-agent-payments/index.js",
+      "require": "./dist/solana/legacy-agent-payments/index.cjs"
+    },
+    "./solana/solana-agent-kit": {
+      "types": "./dist/solana/solana-agent-kit/index.d.ts",
+      "import": "./dist/solana/solana-agent-kit/index.js",
+      "require": "./dist/solana/solana-agent-kit/index.cjs"
+    },
+    "./solana/solana-agent-kit/index": {
+      "types": "./dist/solana/solana-agent-kit/index.d.ts",
+      "import": "./dist/solana/solana-agent-kit/index.js",
+      "require": "./dist/solana/solana-agent-kit/index.cjs"
+    },
     "./x402": {
+      "types": "./dist/x402/index.d.ts",
+      "import": "./dist/x402/index.js",
+      "require": "./dist/x402/index.cjs"
+    },
+    "./x402/index": {
       "types": "./dist/x402/index.d.ts",
       "import": "./dist/x402/index.js",
       "require": "./dist/x402/index.cjs"
@@ -44,7 +74,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -54,7 +87,30 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "watch:usdc": "node scripts/usdc-whitelist-monitor.mjs",
+    "check:whitelist": "node scripts/check-whitelist.mjs"
+  },
+  "keywords": [
+    "solana",
+    "pump-fun",
+    "agent-payments",
+    "x402",
+    "evm",
+    "cross-chain",
+    "sdk",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nirholas/agent-payments-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nirholas/agent-payments-sdk/issues"
+  },
+  "homepage": "https://github.com/nirholas/agent-payments-sdk#readme",
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -66,9 +122,17 @@
     "zod": "^3.23.0"
   },
   "peerDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/web3.js": "^1.98.0",
     "zod": "^3.0.0"
   },
   "peerDependenciesMeta": {
+    "@coral-xyz/anchor": {
+      "optional": true
+    },
+    "@solana/web3.js": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     }

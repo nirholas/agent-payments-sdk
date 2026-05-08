@@ -8,3 +8,5 @@ coverage/
 pump-fun-agent-payments-sdk-3.0.3.tgz
 .wallet.json
 agent-prompts/**/node_modules
+.gmgn_private.pem
+.gmgn_public.pem
