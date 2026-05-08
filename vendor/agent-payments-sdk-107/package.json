@@ -1,0 +1,42 @@
+{
+  "name": "@pump-fun/agent-payments-sdk",
+  "version": "1.0.7",
+  "description": "TypeScript SDK for Pump Agent Payments",
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "author": "Pump Fun",
+  "license": "ISC",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "copy-idl": "mkdir -p src/idl && cp ../../target/idl/pump_agent_payments.json src/idl/ && cp ../../target/types/pump_agent_payments.ts src/idl/",
+    "build": "npm run copy-idl && tsup src/index.ts --format cjs,esm --dts",
+    "build:prod": "tsup src/index.ts --format cjs,esm --dts --minify"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "*"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.2.0",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.3"
+  }
+}
