@@ -1,5 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
-import type BN from "bn.js";
+import type { BN } from "@coral-xyz/anchor";
 
 /** Pump Agent Payments program ID */
 export const PROGRAM_ID = new PublicKey(
