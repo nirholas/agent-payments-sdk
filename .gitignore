@@ -1,5 +1,7 @@
 node_modules/
 dist/
+!vendor/**/dist/
+coverage/
 *.tsbuildinfo
 .env
 .env.local

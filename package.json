@@ -51,7 +51,10 @@
     "build:prod": "tsup --minify",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -69,8 +72,11 @@
     }
   },
   "devDependencies": {
+    "@pump-fun/agent-payments-sdk": "file:./vendor/agent-payments-sdk-107",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.1.5",
     "tsup": "^8.3.5",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.5"
   }
 }
