@@ -6,7 +6,7 @@ import type { LegacyPumpAgentPayments } from "./idl.js";
 
 const IDL = idlJson as unknown as LegacyPumpAgentPayments;
 
-const NOOP_WALLET = {
+export const NOOP_WALLET = {
   publicKey: PublicKey.default,
   signTransaction: () => Promise.reject(new Error("read-only wallet")),
   signAllTransactions: () => Promise.reject(new Error("read-only wallet")),

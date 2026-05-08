@@ -3,6 +3,7 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 
 import {
+  NOOP_WALLET,
   OFFLINE_PUMP_PROGRAM,
   decodeLegacyGlobalConfig,
   decodeLegacyTokenAgentPaymentInCurrency,
@@ -49,6 +50,20 @@ describe("legacy-agent-payments / program", () => {
 
   it("OFFLINE_PUMP_PROGRAM singleton is reused across calls", () => {
     expect(OFFLINE_PUMP_PROGRAM).toBe(getLegacyPumpProgramWithFallback());
+  });
+});
+
+describe("legacy-agent-payments / NOOP_WALLET rejecters", () => {
+  it("signTransaction rejects with 'read-only wallet'", async () => {
+    await expect(
+      NOOP_WALLET.signTransaction({} as never),
+    ).rejects.toThrow("read-only wallet");
+  });
+
+  it("signAllTransactions rejects with 'read-only wallet'", async () => {
+    await expect(
+      NOOP_WALLET.signAllTransactions([] as never),
+    ).rejects.toThrow("read-only wallet");
   });
 });
 
