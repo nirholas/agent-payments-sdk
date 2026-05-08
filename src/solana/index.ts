@@ -117,6 +117,10 @@ export { PumpAgentPaymentsPlugin } from "./solana-agent-kit";
 // x402 protocol
 export * as x402 from "./x402";
 
+// Whitelist monitor — real-time detection of new quote mints (e.g. USDC).
+export { WhitelistMonitor, PUMP_GLOBAL_PDA } from "./WhitelistMonitor.js";
+export type { WhitelistChangeEvent } from "./WhitelistMonitor.js";
+
 // Legacy 1.0.7 program (`pUmPFn9...`) — coexists with the modern 3.0.x
 // program above. Use these classes when interacting with coins whose
 // tokenized agent was registered via @pump-fun/pump-sdk's

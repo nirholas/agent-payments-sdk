@@ -1,0 +1,53 @@
+{
+  "address": "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+  "metadata": {
+    "name": "pump",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Minimal IDL — only the Global account, used by WhitelistMonitor"
+  },
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "Global",
+      "discriminator": [167, 232, 232, 177, 200, 108, 114, 127]
+    }
+  ],
+  "events": [],
+  "errors": [],
+  "types": [
+    {
+      "name": "Global",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "initialized", "type": "bool" },
+          { "name": "authority", "type": "pubkey" },
+          { "name": "fee_recipient", "type": "pubkey" },
+          { "name": "initial_virtual_token_reserves", "type": "u64" },
+          { "name": "initial_virtual_sol_reserves", "type": "u64" },
+          { "name": "initial_real_token_reserves", "type": "u64" },
+          { "name": "token_total_supply", "type": "u64" },
+          { "name": "fee_basis_points", "type": "u64" },
+          { "name": "withdraw_authority", "type": "pubkey" },
+          { "name": "enable_migrate", "type": "bool" },
+          { "name": "pool_migration_fee", "type": "u64" },
+          { "name": "creator_fee_basis_points", "type": "u64" },
+          { "name": "fee_recipients", "type": { "array": ["pubkey", 7] } },
+          { "name": "set_creator_authority", "type": "pubkey" },
+          { "name": "admin_set_creator_authority", "type": "pubkey" },
+          { "name": "create_v2_enabled", "type": "bool" },
+          { "name": "whitelist_pda", "type": "pubkey" },
+          { "name": "reserved_fee_recipient", "type": "pubkey" },
+          { "name": "mayhem_mode_enabled", "type": "bool" },
+          { "name": "reserved_fee_recipients", "type": { "array": ["pubkey", 7] } },
+          { "name": "is_cashback_enabled", "type": "bool" },
+          { "name": "buyback_fee_recipients", "type": { "array": ["pubkey", 8] } },
+          { "name": "buyback_basis_points", "type": "u64" },
+          { "name": "initial_virtual_quote_reserves", "type": "u64" },
+          { "name": "whitelisted_quote_mints", "type": { "array": ["pubkey", 1] } }
+        ]
+      }
+    }
+  ]
+}
