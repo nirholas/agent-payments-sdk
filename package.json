@@ -7,6 +7,9 @@
   },
   "author": "Pump Fun",
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -42,6 +45,7 @@
     "dist"
   ],
   "scripts": {
+    "test": "echo \"No tests configured\" && exit 0",
     "build": "tsup",
     "build:prod": "tsup --minify",
     "dev": "tsup --watch",
