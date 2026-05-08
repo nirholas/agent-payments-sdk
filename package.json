@@ -27,6 +27,11 @@
       "import": "./dist/solana/index.js",
       "require": "./dist/solana/index.cjs"
     },
+    "./solana/legacy-agent-payments": {
+      "types": "./dist/solana/legacy-agent-payments/index.d.ts",
+      "import": "./dist/solana/legacy-agent-payments/index.js",
+      "require": "./dist/solana/legacy-agent-payments/index.cjs"
+    },
     "./x402": {
       "types": "./dist/x402/index.d.ts",
       "import": "./dist/x402/index.js",
