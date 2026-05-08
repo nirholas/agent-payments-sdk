@@ -249,6 +249,13 @@ A coin was created via `pump-sdk`'s `createV2AndBuyInstructions` with
 
 ### Step 1 — Create the coin via pump-sdk directly
 
+> **Important:** The bundled `create-coin/scripts/build-create-coin-tx.mjs` always registers
+> the agent on the **3.0.x** program (`AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`) when
+> `--tokenized-agent` is set. It does NOT support the 1.0.7 path. To create a coin whose
+> agent lands on `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`, you MUST call
+> `pump-sdk` directly using `createV2AndBuyInstructions({ isTokenizedAgent: true })` as
+> shown below — do not use the bundled script.
+
 ```ts
 import { PumpSdk } from "@pump-fun/pump-sdk";
 import { Connection, Keypair, PublicKey, VersionedTransaction } from "@solana/web3.js";
@@ -332,29 +339,117 @@ const withdrawIx = await agent.withdraw({
 
 ### Post-state verification — Step 2
 
-Identical to Scenario 1 Steps 2–3 post-state checks, except every PDA derives
-under program `pUmPFn9...` instead of `AgenTMiC...`.
+Accounts under `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`:
+
+| Account | Derivation | Expected |
+|---|---|---|
+| Invoice ID | `[b"invoice-id", mint, currency_mint, amount, memo, start_time, end_time]` on `pUmPFn9...` | exists. |
+| Payment in currency | PDA `[b"payment-in-currency", mint, currency_mint]` on `pUmPFn9...` | balance increased by `amount`. |
+| Buyer wSOL ATA | ATA for `So11111111111111111111111111111111111111112`, owned by buyer | does not exist (closed at end of tx). |
+
+```ts
+import { legacyAgentPayments } from "@nirholas/agent-payments-sdk";
+const { getInvoiceIdPDA, getPaymentInCurrencyPDA } = legacyAgentPayments;
+import BN from "bn.js";
+
+const [invoicePda] = getInvoiceIdPDA(
+  mint,
+  NATIVE_MINT,
+  new BN(1_000_000),
+  new BN(12345),
+  new BN(Math.floor(Date.now() / 1000)),
+  new BN(Math.floor(Date.now() / 1000) + 86_400),
+);
+const invoiceInfo = await conn.getAccountInfo(invoicePda);
+if (!invoiceInfo) throw new Error("invoice PDA missing — payment did not land");
+```
+
+### Step 3 — Buyback trigger on legacy
+
+The 1.0.7 `agentBuybackTrigger` ix has the same signature as the 3.0.x
+`agent_buyback_trigger` but is submitted to `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`.
+The `global_buyback_authority` must be the key registered on the **legacy**
+`GlobalConfig` PDA (derived from `pUmPFn9...`), which may differ from the
+3.0.x `GlobalConfig.buyback_authority`.
+
+```ts
+import { legacyAgentPayments } from "@nirholas/agent-payments-sdk";
+const { LegacyPumpAgentOffline } = legacyAgentPayments;
+import { NATIVE_MINT } from "@solana/spl-token";
+
+const agent = LegacyPumpAgentOffline.load(mint, conn);
+
+const buybackIx = await agent.buybackTrigger({
+  globalBuybackAuthority: buybackAuthorityPubkey,
+  currencyMint: NATIVE_MINT,
+  swapProgramToInvoke: jupiterProgramId,
+  swapInstructionData: Buffer.from(encodedJupiterSwapBytes),
+  remainingAccounts: jupiterRemainingAccounts,
+});
+```
+
+Note: the 1.0.7 IDL does not include `burn_currency_mint_vault` — the legacy
+`agentBuybackTrigger` has one fewer account than the 3.0.x version (13 vs 16
+accounts). Check `src/solana/legacy-agent-payments/idl.json` for the exact
+account list when building raw instructions.
+
+### Post-state verification — Step 3
+
+| Account | Expected |
+|---|---|
+| Legacy `buyback_vault` (wSOL) | balance = 0. |
+| Agent mint supply | decreased by the burned amount. |
+| `burnMintVault` (base token ATA of `burnAuthority`) | balance = 0. |
+
+```ts
+import { getAssociatedTokenAddress } from "@solana/spl-token";
+import { legacyAgentPayments } from "@nirholas/agent-payments-sdk";
+const { getBuybackAuthorityPDA } = legacyAgentPayments;
+
+const [burnAuth] = getBuybackAuthorityPDA(mint);
+const burnMintVaultAddr = await getAssociatedTokenAddress(mint, burnAuth, true);
+const vaultInfo = await conn.getTokenAccountBalance(burnMintVaultAddr);
+if (Number(vaultInfo.value.amount) !== 0) {
+  throw new Error("burn vault not empty — burn may have failed");
+}
+const mintInfo = await conn.getTokenSupply(mint);
+console.log("Current supply:", mintInfo.value.uiAmountString);
+```
 
 ### API differences vs 3.0.x
 
 | Capability | 3.0.x | 1.0.7 |
 |---|---|---|
-| `agent_transfer_extra_lamports` | available | absent — stray lamports cannot be swept; they accumulate on the agent record. |
-| `global_remove_currency` | available (admin-only) | absent — once a currency is added it stays for the lifetime of `global_config`. |
-| Discriminator naming | snake_case (`agent_initialize`) | camelCase (`agentInitialize`) — the wire-level Anchor discriminator differs because Anchor hashes the name. |
-| Error names | PascalCase (`UnauthorizedSigner`) | camelCase (`unauthorizedSigner`) — same numeric codes (6000–6013). |
+| `agent_transfer_extra_lamports` | available | absent — stray lamports cannot be swept; they accumulate on the agent record indefinitely. |
+| `global_remove_currency` | available (admin-only) | absent — once a currency is added to `GlobalConfig.supported_currencies_mint` it stays for the lifetime of the on-chain state. There is no way to remove it on 1.0.7. |
+| `burn_currency_mint_vault` account in `agentBuybackTrigger` | present (account #9 in 3.0.x) | absent — the 1.0.7 version of the ix does not include this account. |
+| Discriminator naming | snake_case (`agent_initialize`) | camelCase (`agentInitialize`) — the wire-level Anchor discriminator differs because Anchor hashes the instruction name string. |
+| Error names | PascalCase (`UnauthorizedSigner`) | camelCase (`unauthorizedSigner`) — same numeric codes 6000–6012. Note: 1.0.7 lacks error 6013 (`InvalidIndex`). |
+| `GlobalConfig` max error code | 6013 `InvalidIndex` | 6012 `accountTypeNotSupported` — error 6013 does not exist on 1.0.7. |
+
+### Discriminator differences between 1.0.7 and 3.0.x
+
+Because Anchor hashes the instruction name to produce the 8-byte discriminator,
+and 1.0.7 uses camelCase while 3.0.x uses snake_case, the discriminators differ
+for every shared instruction. This means a transaction targeting the wrong program
+will fail with `AccountNotInitialized` or `InvalidAccountData` at the program
+account check — not a decode error. Always confirm the program ID before building
+the instruction.
 
 ### Failure modes specific to legacy
 
 - Calling 3.0.x's `PumpAgentOffline.acceptPayment` against a coin whose agent
   lives on 1.0.7 returns an `Account does not exist` from the RPC because the
-  3.0.x code derives the agent PDA under `AgenTMiC...`, where there is no
-  account. Always run dual-program detection first
+  3.0.x code derives the agent PDA under `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`,
+  where there is no account. Always run dual-program detection first
   ([`WALLET_INTEGRATION.md`](WALLET_INTEGRATION.md)).
-- The 1.0.7 `agent_buyback_trigger` predates the v2 bonding curve. If the
+- The 1.0.7 `agentBuybackTrigger` predates the v2 bonding curve. If the
   swap leg routes directly through the pump program, the caller's
-  `swap_instruction_data` MUST encode a v2 buy when the curve has been
+  `swapInstructionData` MUST encode a v2 buy when the curve has been
   migrated — see Scenario 4.
+- Calling `agent_transfer_extra_lamports` on a 1.0.7 agent via the 3.0.x SDK
+  will fail with `AccountNotInitialized` — the ix does not exist on `pUmPFn9...`.
+  Detect the program first; if legacy, stray lamports must be left in place.
 
 ---
 
@@ -372,10 +467,40 @@ USDC as `currency_mint`.
   program. Both lists are admin-managed; if either is missing, the
   corresponding ix fails (`CurrencyNotSupported` on agent-payments, an account-
   resolution failure on pump). Confirm both lists before attempting; the
-  current mainnet contents change over time. **unverified — requires source
-  review**: a `docs/mainnet-verification-report.md` was referenced in the
-  rewrite spec but does not exist in this branch as of this commit. When that
-  report lands, link it from here.
+  current mainnet contents change over time.
+
+  Verify the current whitelist at runtime before creating a USDC-paired coin:
+
+  ```ts
+  import { Connection, PublicKey } from "@solana/web3.js";
+  import { Program, AnchorProvider } from "@coral-xyz/anchor";
+
+  // Pump program Global account
+  const PUMP_PROGRAM_ID = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
+  const [GLOBAL_PDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("global")],
+    PUMP_PROGRAM_ID,
+  );
+
+  // Agent-payments GlobalConfig
+  const AGENT_PROGRAM_ID = new PublicKey("AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7");
+  const [GLOBAL_CONFIG_PDA] = PublicKey.findProgramAddressSync(
+    [Buffer.from("global-config")],
+    AGENT_PROGRAM_ID,
+  );
+
+  // Fetch and inspect:
+  const pumpGlobal = await pumpProgram.account.global.fetch(GLOBAL_PDA);
+  console.log("whitelisted_quote_mints:", pumpGlobal.whitelistedQuoteMints.map(p => p.toBase58()));
+
+  const agentGlobalConfig = await agentProgram.account.globalConfig.fetch(GLOBAL_CONFIG_PDA);
+  console.log("supported_currencies_mint:", agentGlobalConfig.supportedCurrenciesMint.map(p => p.toBase58()));
+  ```
+
+  Both lists must contain the USDC mint `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` for
+  end-to-end USDC flows to succeed. If the agent-payments program list is missing it,
+  the protocol authority must call `global_add_new_currency` before any agent can accept
+  USDC payments.
 
 ### Step 1 — Create the USDC-paired coin
 
@@ -503,6 +628,30 @@ populated). The agent record itself is unaffected — it still lives on
   coin exists the account is never re-initialized, so the v2 layout change
   does not retroactively break anything.
 
+### Detecting whether migration has occurred
+
+Check `data.length` on the bonding-curve account before building any swap leg:
+
+```ts
+import { Connection, PublicKey } from "@solana/web3.js";
+
+const PUMP_PROGRAM = new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P");
+const [bondingCurvePda] = PublicKey.findProgramAddressSync(
+  [Buffer.from("bonding-curve"), mint.toBuffer()],
+  PUMP_PROGRAM,
+);
+
+const info = await conn.getAccountInfo(bondingCurvePda);
+if (!info) throw new Error("bonding curve not found");
+
+const isV2 = info.data.length === 151;
+const isLegacy = info.data.length === 129;
+console.log(isV2 ? "v2 curve — use buy_v2" : "legacy curve — use buy");
+```
+
+Once the curve has been migrated (first `buy_v2` or `sell_v2` after
+2026-05-07), `data.length` is permanently 151. There is no rollback.
+
 ### What requires care — `agent_buyback_trigger`
 
 The 1.0.7 buyback ix forwards `swap_instruction_data` verbatim to
@@ -513,41 +662,100 @@ size or layout error because the curve is 151B and `buy` (as opposed to
 
 To recover, the buyback authority must re-encode the swap leg:
 
-| Curve state | Use this swap leg |
-|---|---|
-| Legacy 129B (pre-migration) | legacy `buy` on `6EF8...`. |
-| v2 151B, `quote_mint = wSOL` | `buy_v2` on `6EF8...`. |
-| v2 151B, `quote_mint = USDC` | `buy_v2` or `buy_exact_quote_in_v2` on `6EF8...`. |
+| Curve state | Curve data length | Use this swap leg |
+|---|---|---|
+| Pre-migration (legacy) | 129 bytes | legacy `buy` on `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`. |
+| Post-migration, `quote_mint = wSOL` | 151 bytes | `buy_v2` on `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`. |
+| Post-migration, `quote_mint = USDC` | 151 bytes | `buy_v2` or `buy_exact_quote_in_v2` on `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`. |
 
 In practice, every buyback should now route through Jupiter (or another
 aggregator that already abstracts v1/v2 selection), which avoids the need for
 the buyback authority to detect curve state directly.
 
+### Rebuilding swap bytes for a migrated curve
+
+If the buyback authority previously stored pre-built `swapInstructionData`
+bytes (e.g. from a Jupiter quote taken before migration), those bytes must be
+discarded and rebuilt using a fresh Jupiter quote against the current curve
+state:
+
+```ts
+// 1. Take a fresh Jupiter quote for wSOL → agentMint
+const quoteResp = await fetch(
+  `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112` +
+  `&outputMint=${mint.toBase58()}&amount=${wsolAmountInVault}&slippageBps=100`,
+);
+const quote = await quoteResp.json();
+
+// 2. Get swap ix bytes
+const swapResp = await fetch("https://quote-api.jup.ag/v6/swap-instructions", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    quoteResponse: quote,
+    userPublicKey: burnAuthority.toBase58(), // the PDA that holds the wSOL
+  }),
+});
+const { swapInstruction } = await swapResp.json();
+
+// 3. Encode swapInstruction.data as Buffer and pass to agentBuybackTrigger
+const swapInstructionData = Buffer.from(swapInstruction.data, "base64");
+```
+
 ### Post-state verification — buyback after migration
 
-Same as Scenario 1 Step 4. The relevant assertion is that
-`SwapFailedAmountDidNotIncrease` (code 6011) does not fire — that error is
-the symptom of submitting stale (legacy) swap-leg bytes against a v2 curve.
+```ts
+import { legacyAgentPayments } from "@nirholas/agent-payments-sdk";
+const { getBuybackAuthorityPDA } = legacyAgentPayments;
+import { getAssociatedTokenAddress, NATIVE_MINT } from "@solana/spl-token";
+
+const [burnAuth] = getBuybackAuthorityPDA(mint);
+const buybackVault = await getAssociatedTokenAddress(mint, burnAuth, true);
+
+// Both vaults should be drained after a successful buyback
+const buybackBal = await conn.getTokenAccountBalance(buybackVault);
+if (Number(buybackBal.value.amount) !== 0) {
+  console.error("SwapFailedAmountDidNotIncrease (6011) may have fired — check tx logs");
+}
+const supplyResp = await conn.getTokenSupply(mint);
+console.log("Mint supply after buyback:", supplyResp.value.uiAmountString);
+```
+
+The relevant error to watch for is `SwapFailedAmountDidNotIncrease` (code
+6011) — that is the symptom of submitting stale (legacy) swap-leg bytes
+against a v2 curve. If it fires, rebuild the swap bytes per the instructions
+above.
 
 ### Indexer / dashboard updates
 
 - Bonding-curve account decoders must accept both 129B and 151B layouts.
-  Sniff on `data.length` before decoding.
-- A coin's quote currency is now `BondingCurve.quote_mint` for v2; for
-  legacy curves, infer wSOL.
-- Agent program ownership is unchanged: legacy agents stay on `pUmPFn9...`
-  forever. Do NOT migrate them to `AgenTMiC...` — there is no migration ix,
-  and the two PDAs would collide on seeds across programs.
+  Branch on `data.length` before decoding:
+  - `data.length === 129`: legacy layout, no `quote_mint` field. Infer wSOL.
+  - `data.length === 151`: v2 layout. Read `quote_mint` at bytes `[129..161]`.
+- A coin's quote currency is `BondingCurve.quote_mint` (v2) or wSOL inferred
+  (legacy). Do not assume wSOL for v2 curves — they may be USDC-paired.
+- Agent program ownership is unchanged by the curve migration: legacy agents
+  stay on `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4` forever. Do NOT
+  attempt to migrate them to `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`
+  — there is no migration ix, and the two PDAs use the same seeds, so they
+  resolve to different addresses under different programs; no collision occurs
+  but also no automatic handoff.
+- Event logs: the pump program emits a `TradeMigratedToV2` event on the first
+  v2 trade. Index this event to trigger re-fetching curve account size in your
+  cache.
 
 ### What does NOT change
 
-| Artifact | Pre-migration | Post-migration |
+| Artifact | Pre-migration state | Post-migration state |
 |---|---|---|
-| Agent record program | `pUmPFn9...` | `pUmPFn9...` (unchanged). |
-| Agent record fields (`mint`, `authority`, `buyback_bps`) | unchanged. |
-| Invoice ID PDA derivation | unchanged. |
-| Per-currency payment vault PDA | unchanged. |
-| Distribute / withdraw mechanics | unchanged. |
+| Agent record program | `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4` | unchanged. |
+| Agent record PDA | `[b"token-agent-payments", mint]` on `pUmPFn9...` | unchanged. |
+| Agent record fields (`mint`, `authority`, `buyback_bps`) | set at creation | unchanged. |
+| Invoice ID PDA derivation | `[b"invoice-id", mint, currency_mint, ...]` on `pUmPFn9...` | unchanged. |
+| Per-currency payment vault PDA | `[b"payment-in-currency", mint, currency_mint]` on `pUmPFn9...` | unchanged. |
+| Distribute / withdraw mechanics | token transfers between PDAs within `pUmPFn9...` | unchanged. |
+| Existing unfilled invoices | valid | still valid — `agent_accept_payment` does not reference the bonding curve. |
+| Existing vault balances | unchanged by migration | unchanged — the curve migration does not touch agent-payments PDAs. |
 
 ---
 
