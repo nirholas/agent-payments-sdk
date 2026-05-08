@@ -20,7 +20,7 @@ metadata:
 - [ ] Initial buy amount confirmed (SOL in lamports)
 - [ ] Cashback desired? (default off)
 - [ ] Mayhem mode desired? (default off)
-- [ ] Tokenized agent desired? (default off), If Yes then with what Buyback percentage.
+- [ ] Tokenized agent desired? (default off). If yes: buyback percentage, **and** whether the legacy 1.0.7 agent program is required by downstream tooling (default: modern 3.0.x — see "Choosing legacy vs modern agent program"). This choice is **irreversible per coin**.
 - [ ] Front-runner protection desired? If yes, confirm tip amount (default 0.0001 SOL). Transactions will be sent **only** to Jito block engine endpoints.
 
 You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one.
@@ -93,6 +93,7 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 
 - Run any script with `--help` for full flags (`--mayhem-mode`, `--tokenized-agent`, `--legacy-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
 - Tx builders print **one JSON object** on stdout with `transaction` (base64-encoded VersionedTransaction, partially signed when the mint keypair is used on create). **Never** pass end-user private keys into these scripts.
+- `build-create-coin-tx.mjs` always includes `agentProgram` (`"3.0.x"` | `"1.0.7"` | `null`) and `agentProgramId` (on-chain pubkey string | `null`) in the output, making the agent program choice auditable from the receipt.
 - **OpenClaw:** If YAML `metadata` ever fails to parse, collapse `metadata` to a single-line JSON object per [OpenClaw skills](https://docs.openclaw.ai/skills/); optional `metadata.openclaw.requires.env: ["SOLANA_RPC_URL"]` can gate load-time eligibility.
 
 **Published copy:** [METADATA.md (raw)](https://raw.githubusercontent.com/pump-fun/pump-fun-skills/refs/heads/main/create-coin/references/METADATA.md)
@@ -105,12 +106,15 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 - Use the correct decimal precision: **9 decimals for SOL** (1 SOL = 1,000,000,000 lamports), **6 decimals for pump tokens**.
 - **NEVER trust `token_program` from the HTTP API** (`coins-v2`). Always fetch the mint account on-chain via `connection.getAccountInfo(mint)` and use `.owner` to determine the correct token program (SPL Token or Token-2022).
 - **Verify imports:** use `@pump-fun/pump-sdk` (not internal monorepo paths). In TypeScript apps, `BN` from `bn.js` matches what the SDKs expect (Anchor `BN` is the same type in practice).
+- **Agent program choice is irreversible.** The `--tokenized-agent` instruction (3.0.x or 1.0.7 via `--legacy-agent`) creates an on-chain state account whose address is a PDA seeded under the chosen program. Once a coin is created, the program cannot be changed. Always confirm which program is required before building the transaction.
 
 ## Program IDs
 
-| Program | ID                                            |
-| ------- | --------------------------------------------- |
-| Pump    | `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P` |
+| Program                   | ID                                             |
+| ------------------------- | ---------------------------------------------- |
+| Pump (bonding curve)      | `6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P` |
+| Agent payments 3.0.x      | `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7` |
+| Agent payments 1.0.7 (legacy) | `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4` |
 
 ## Environment Variables
 
