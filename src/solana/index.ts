@@ -117,6 +117,12 @@ export { PumpAgentPaymentsPlugin } from "./solana-agent-kit";
 // x402 protocol
 export * as x402 from "./x402";
 
+// BondingCurve account sizes
+// pre-v2 layout, 8 discriminator + 107 data bytes
+export const BONDING_CURVE_OLD_SIZE = 115;
+/** Post-2026-05-07 layout with quoteMint, isMayhemMode, isCashbackCoin fields. */
+export const BONDING_CURVE_NEW_SIZE = 151;
+
 // Legacy 1.0.7 program (`pUmPFn9...`) — coexists with the modern 3.0.x
 // program above. Use these classes when interacting with coins whose
 // tokenized agent was registered via @pump-fun/pump-sdk's
