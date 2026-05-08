@@ -4,12 +4,13 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import {
+  NATIVE_MINT,
   TOKEN_PROGRAM_ID,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { BN, EventParser } from "@coral-xyz/anchor";
 
-import { PumpAgentOffline } from "./PumpAgentOffline";
+import { PumpAgentOffline, resolveTokenProgramForMint } from "./PumpAgentOffline";
 import { getPumpProgramWithFallback } from "./program";
 import {
   getBuybackAuthorityPDA,
@@ -104,9 +105,91 @@ export class PumpAgent extends PumpAgentOffline {
     ]);
 
     return {
+      quoteMint: currencyMint,
       paymentVault: { address: paymentAta, balance: paymentBal },
       buybackVault: { address: buybackAta, balance: buybackBal },
       withdrawVault: { address: withdrawAta, balance: withdrawBal },
+    };
+  }
+
+  /**
+   * Fetch balances for every currency this agent could receive — i.e. SOL
+   * (always) plus every non-default mint in `GlobalConfig.supportedCurrenciesMint`.
+   *
+   * Returned map is keyed by `mint.toBase58()`. Lookups happen concurrently.
+   */
+  async getAllCurrencyBalances(): Promise<Map<string, AgentBalances>> {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+
+    const [globalConfigPda] = getGlobalConfigPDA();
+    const cfg = await (this.program.account as any).globalConfig.fetch(globalConfigPda);
+
+    const splMints = cfg.supportedCurrenciesMint.filter(
+      (m: PublicKey) => !PublicKey.default.equals(m),
+    );
+
+    // Resolve token programs for SPL mints in one batched RPC.
+    const accountInfos = splMints.length
+      ? await connection.getMultipleAccountsInfo(splMints)
+      : [];
+
+    type MintTp = { mint: PublicKey; tokenProgram: PublicKey };
+    const queries: MintTp[] = [
+      { mint: NATIVE_MINT, tokenProgram: TOKEN_PROGRAM_ID },
+    ];
+    for (const [idx, mint] of splMints.entries()) {
+      // Skip NATIVE_MINT if it somehow appears in the SPL list — already added.
+      if (mint.equals(NATIVE_MINT)) continue;
+      const info = accountInfos[idx];
+      if (!info) continue;
+      queries.push({ mint, tokenProgram: info.owner });
+    }
+
+    const results = await Promise.all(
+      queries.map(async ({ mint, tokenProgram }) => {
+        const balances = await this.getBalances(mint, tokenProgram);
+        return [mint.toBase58(), balances] as const;
+      }),
+    );
+
+    return new Map(results);
+  }
+
+  async getCoinQuoteMint(baseMint: PublicKey): Promise<PublicKey> {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+    return PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
+  }
+
+  async getCoinPaymentSummary(baseMint: PublicKey): Promise<{
+    quoteMint: PublicKey;
+    totalPaymentsReceived: BN;
+    pendingBuyback: BN;
+    pendingWithdrawal: BN;
+    readyToDistribute: boolean;
+  }> {
+    const connection = this.connection;
+    if (!connection) throw new Error("Connection is required");
+
+    const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
+    const tp = await resolveTokenProgramForMint(connection, quoteMint);
+
+    const [balances, stats] = await Promise.all([
+      this.getBalances(quoteMint, tp),
+      this.getPaymentStats(quoteMint).catch(() => null),
+    ]);
+
+    const totalPaymentsReceived = stats
+      ? new BN(stats.totalInvoicePaymentsMade.toString())
+      : new BN(0);
+
+    return {
+      quoteMint,
+      totalPaymentsReceived,
+      pendingBuyback: new BN(balances.buybackVault.balance.toString()),
+      pendingWithdrawal: new BN(balances.withdrawVault.balance.toString()),
+      readyToDistribute: balances.paymentVault.balance > 0n,
     };
   }
 
@@ -124,7 +207,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const globalConfigAccount =
-      await this.program.account.GlobalConfig.fetch(globalConfigPda);
+      await (this.program.account as any).globalConfig.fetch(globalConfigPda);
 
     const mints = globalConfigAccount.supportedCurrenciesMint.filter(
       (m: PublicKey) => !PublicKey.default.equals(m),
@@ -158,7 +241,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getTokenAgentPaymentsPDA(this.mint);
-    return this.program.account.TokenAgentPayments.fetch(pda);
+    return (this.program.account as any).tokenAgentPayments.fetch(pda);
   }
 
   /**
@@ -170,7 +253,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getGlobalConfigPDA();
-    return this.program.account.GlobalConfig.fetch(pda);
+    return (this.program.account as any).globalConfig.fetch(pda);
   }
 
   /**
@@ -184,7 +267,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getPaymentInCurrencyPDA(this.mint, currencyMint);
-    return this.program.account.TokenAgentPaymentInCurrency.fetch(pda);
+    return (this.program.account as any).tokenAgentPaymentInCurrency.fetch(pda);
   }
 
   /**

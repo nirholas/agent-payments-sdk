@@ -13,6 +13,8 @@ export interface VaultBalance {
 }
 
 export interface AgentBalances {
+  /** Currency mint these vaults hold (NATIVE_MINT for SOL, or any SPL mint). */
+  quoteMint: PublicKey;
   /** ATA of the TokenAgentPayments PDA (incoming payments land here) */
   paymentVault: VaultBalance;
   /** ATA of the Buyback Authority PDA */
