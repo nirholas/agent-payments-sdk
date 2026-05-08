@@ -95,19 +95,20 @@ function parseLimit(args: string[]): number {
   return Number.isNaN(val) || val <= 0 ? 200 : val;
 }
 
-// ─── Signature Map ────────────────────────────────────────────────────────────
-// Independently scan the PDA to build an invoiceId → txSignature mapping.
-// This provides the transaction signature needed for Solscan URLs without
-// modifying the PumpAgent public API.
+// ─── Primary PDA Scan ─────────────────────────────────────────────────────────
+// Single rate-limited pass over the TokenAgentPayments PDA transactions.
+// Returns all parsed events AND an invoiceId → txSignature map.
+// This avoids triple-fetching when combined with the dedup logic in fetchFullHistory.
 
-async function buildSignatureMap(
+async function scanPdaTransactions(
   connection: Connection,
   mint: PublicKey,
   limit: number,
-): Promise<Map<string, string>> {
+): Promise<{ events: ParsedAgentEvent[]; sigMap: Map<string, string> }> {
   const [pda] = getTokenAgentPaymentsPDA(mint);
   const sigs = await connection.getSignaturesForAddress(pda, { limit });
-  const map = new Map<string, string>();
+  const events: ParsedAgentEvent[] = [];
+  const sigMap = new Map<string, string>();
 
   for (const sig of sigs) {
     if (sig.err) continue;
@@ -118,17 +119,21 @@ async function buildSignatureMap(
     if (!tx?.meta?.logMessages) continue;
 
     for (const event of parseAgentEvents(tx.meta.logMessages, connection)) {
+      events.push(event);
       if (event.name === "agentAcceptPaymentEvent") {
         const data = event.data as AgentAcceptPaymentEvent;
-        map.set(data.invoiceId.toBase58(), sig.signature);
+        sigMap.set(data.invoiceId.toBase58(), sig.signature);
       }
     }
   }
 
-  return map;
+  return { events, sigMap };
 }
 
 // ─── Core Fetch ───────────────────────────────────────────────────────────────
+// Merges events from the rate-limited PDA scan with both SDK methods.
+// SDK calls provide supplemental deduplication coverage for any events that
+// the primary scan may have missed due to ordering or RPC differences.
 
 async function fetchFullHistory(
   agent: PumpAgent,
@@ -136,45 +141,58 @@ async function fetchFullHistory(
   mint: PublicKey,
   limit: number,
 ): Promise<{ allEvents: ParsedAgentEvent[]; sigMap: Map<string, string> }> {
-  const [eventHistory, paymentHistory, sigMap] = await Promise.all([
+  // Primary scan with rate limiting — builds events + sigMap in one pass.
+  const { events: scannedEvents, sigMap } = await scanPdaTransactions(
+    connection,
+    mint,
+    limit,
+  );
+
+  // SDK methods called per requirements; run in parallel after the primary scan.
+  const [eventHistory, paymentHistory] = await Promise.all([
     agent.getEventHistory(limit),
     agent.getPaymentHistory(limit),
-    buildSignatureMap(connection, mint, limit),
   ]);
 
-  // Deduplicate payment events across both sources by content hash.
+  // Deduplicate payment events across all three sources.
+  // Primary scan takes priority (it has signatures in the sigMap).
   const seen = new Set<string>();
-  const dedupedPayments: AgentAcceptPaymentEvent[] = [];
+  const dedupedPayments: ParsedAgentEvent[] = [];
+
+  for (const ev of scannedEvents) {
+    if (ev.name === "agentAcceptPaymentEvent") {
+      const key = paymentDedupeKey(ev.data as AgentAcceptPaymentEvent);
+      if (!seen.has(key)) {
+        seen.add(key);
+        dedupedPayments.push(ev);
+      }
+    }
+  }
 
   for (const p of paymentHistory) {
     const key = paymentDedupeKey(p);
     if (!seen.has(key)) {
       seen.add(key);
-      dedupedPayments.push(p);
+      dedupedPayments.push({ name: "agentAcceptPaymentEvent" as const, data: p });
     }
   }
 
   for (const ev of eventHistory) {
     if (ev.name === "agentAcceptPaymentEvent") {
-      const p = ev.data as AgentAcceptPaymentEvent;
-      const key = paymentDedupeKey(p);
+      const key = paymentDedupeKey(ev.data as AgentAcceptPaymentEvent);
       if (!seen.has(key)) {
         seen.add(key);
-        dedupedPayments.push(p);
+        dedupedPayments.push(ev);
       }
     }
   }
 
-  // Merge non-payment events with deduplicated payment events, sorted by time.
-  const nonPaymentEvents = eventHistory.filter(
+  // Non-payment events come from the primary scan; sort everything chronologically.
+  const nonPaymentEvents = scannedEvents.filter(
     ev => ev.name !== "agentAcceptPaymentEvent",
   );
-  const paymentEvents: ParsedAgentEvent[] = dedupedPayments.map(p => ({
-    name: "agentAcceptPaymentEvent" as const,
-    data: p,
-  }));
 
-  const allEvents = [...nonPaymentEvents, ...paymentEvents].sort((a, b) => {
+  const allEvents = [...nonPaymentEvents, ...dedupedPayments].sort((a, b) => {
     const tA = (a.data as { timestamp?: BN }).timestamp?.toNumber() ?? 0;
     const tB = (b.data as { timestamp?: BN }).timestamp?.toNumber() ?? 0;
     return tA - tB;
@@ -238,7 +256,7 @@ async function buildReport(
   const count = BigInt(payments.length);
   const avg = count > 0n ? totalUsdc / count : 0n;
 
-  // Fetch live vault state; fall back to zeros if accounts don't exist yet.
+  // Fetch live vault state; fall back gracefully if accounts don't exist yet.
   const [balances, stats] = await Promise.all([
     agent.getBalances(USDC_MINT).catch(() => null),
     agent.getPaymentStats(USDC_MINT).catch(() => null),

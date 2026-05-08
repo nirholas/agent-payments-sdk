@@ -10,10 +10,10 @@ npm install
 
 ## Environment Variables
 
-| Variable        | Description                    |
-|-----------------|--------------------------------|
-| `SOLANA_RPC_URL` | Mainnet RPC endpoint          |
-| `AGENT_MINT`    | Agent token mint address       |
+| Variable         | Description                    |
+|------------------|--------------------------------|
+| `SOLANA_RPC_URL` | Mainnet RPC endpoint           |
+| `AGENT_MINT`     | Agent token mint address       |
 
 ```bash
 export SOLANA_RPC_URL="https://api.mainnet-beta.solana.com"
@@ -50,14 +50,14 @@ npm run export
 ```ts
 {
   agentMint: string,
-  reportGeneratedAt: string,       // ISO 8601
+  reportGeneratedAt: string,        // ISO 8601
   totalPaymentsCount: number,
-  totalUsdcReceived: string,        // e.g. "142.500000"
+  totalUsdcReceived: string,         // e.g. "142.500000"
   uniquePayers: number,
   avgPaymentUsdc: string,
   largestPaymentUsdc: string,
   smallestPaymentUsdc: string,
-  payments: EnrichedPaymentEvent[], // agentAcceptPaymentEvent + enrichment fields
+  payments: EnrichedPaymentEvent[],  // agentAcceptPaymentEvent + enrichment
   distributions: ParsedAgentEvent[],
   buybacks: ParsedAgentEvent[],
   liveState: {
@@ -69,16 +69,17 @@ npm run export
 }
 ```
 
-Each `EnrichedPaymentEvent` includes:
+Each `EnrichedPaymentEvent` adds:
+- `signature` — transaction signature
 - `amountHuman` — USDC amount in decimal form (6 decimal places)
 - `solscanUrl` — `https://solscan.io/tx/<signature>`
 - `payerShort` — first 8 + `...` + last 8 chars of the payer public key
-- All original `AgentAcceptPaymentEvent` fields (serialized as strings)
 
 ## Implementation Notes
 
-- **Deduplication**: payment events from `getEventHistory` and `getPaymentHistory` are merged by a content hash of `(memo, payer, amount, startTime)`, ensuring each payment is counted once.
+- **Single PDA scan**: `scanPdaTransactions` does one rate-limited pass over the `TokenAgentPayments` PDA, collecting all events and an `invoiceId → txSignature` map. `getEventHistory` and `getPaymentHistory` are called afterward for supplemental deduplication, not as the primary fetch source — avoiding triple RPC scans.
+- **Deduplication**: payment events from all three sources are merged by a content hash of `(memo, payer, amount, startTime)`, with the primary scan taking priority (it has signatures).
 - **Integer arithmetic**: all USDC amounts are handled as `bigint` internally; `formatUsdc` performs fixed-point division without floating-point.
-- **Signature correlation**: a separate PDA scan builds an `invoiceId → txSignature` map for Solscan URL generation without modifying the SDK's public API.
-- **Rate limiting**: 100 ms sleep between `getTransaction` calls in the signature map builder to avoid 429s on public RPCs.
+- **Rate limiting**: 100 ms sleep between `getTransaction` calls in `scanPdaTransactions` avoids 429s on public RPCs.
 - **Zero-payment safety**: all stats default to `"0.000000"` when no payments exist; the summary prints `No payments found.` instead of a table.
+- **Live state**: after the historical scan, `agent.getBalances` and `agent.getPaymentStats` fetch current vault balances and on-chain accounting totals for comparison.
