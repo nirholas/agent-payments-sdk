@@ -1,3 +1,7 @@
+// ── Cross-chain unified client
+export { CrossChainPaymentClient } from "./CrossChainPaymentClient.js";
+export type { CrossChainPaymentClientConfig } from "./CrossChainPaymentClient.js";
+
 // ── Solana — full source (PumpAgent, PumpAgentOffline, PDAs, events, x402, solana-agent-kit)
 export * from "./solana/index.js";
 
