@@ -22,7 +22,7 @@ Runtime requirements (from [package.json](package.json)):
 | `viem` | `^2.21.0` |
 | `zod` (peer, optional) | `^3.0.0` |
 
-`package.json` declares no `engines` field; in practice Node 18+ is required because the package is ESM-first and the SDK depends on `@solana/web3.js@^1.98`.
+Node 18+ is required; [package.json](package.json) declares `"engines": { "node": ">=18" }`.
 
 ## Quickstart: Solana modern (3.0.x)
 
@@ -113,7 +113,7 @@ const config = await agent.getAgentConfig();
 
 | Subpath | Description |
 |---|---|
-| `@nirholas/agent-payments-sdk` | Re-exports the Solana and EVM surfaces; namespaced as `solana`, `evm`, `x402Evm`. See [src/index.ts](src/index.ts). |
+| `@nirholas/agent-payments-sdk` | Re-exports the Solana and EVM surfaces; namespaced as `solana`, `evm`, `x402Evm`. Also exports `CrossChainPaymentClient` for EVM→Solana cross-chain flows. See [src/index.ts](src/index.ts). |
 | `@nirholas/agent-payments-sdk/solana` | `PumpAgent`, `PumpAgentOffline`, PDAs, decoders, events, the `legacyAgentPayments` namespace, and the `x402` namespace. See [src/solana/index.ts](src/solana/index.ts). |
 | `@nirholas/agent-payments-sdk/evm` | `EvmAgent`, `EvmAgentOffline`, ABIs, chain registry, invoice helpers, event parser. See [src/evm/index.ts](src/evm/index.ts). |
 | `@nirholas/agent-payments-sdk/x402` | `createEvmX402Fetch` client and EVM facilitator. See [src/x402/index.ts](src/x402/index.ts). |
@@ -150,15 +150,14 @@ The [vendor/](vendor/) tree contains reference-only copies of upstream dependenc
 This package builds with `tsup` to a dual ESM+CJS dist. Scripts from [package.json](package.json):
 
 ```bash
+npm test           # no-op placeholder (exit 0)
 npm run build      # tsup
 npm run build:prod # tsup --minify
 npm run typecheck  # tsc --noEmit
 npm run clean      # rm -rf dist
 ```
 
-There is no `test` script in [package.json](package.json) at the time of this writing; do not add one without aligning on a runner.
-
-The package is ESM-first (`"type": "module"`) and Node 18+ is required for the global `fetch` and `BigInt` APIs assumed by the EVM surface.
+The package is ESM-first (`"type": "module"`). No test runner is wired yet; `npm test` exits cleanly.
 
 ## License
 

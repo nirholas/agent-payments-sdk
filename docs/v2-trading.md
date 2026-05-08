@@ -37,7 +37,15 @@ The `BondingCurve` Anchor struct from [vendor/pump-sdk-npm/src/state.ts](../vend
 | (none) | `isCashbackCoin` | New. |
 | (none) | `quoteMint` | New — `Pubkey::default()` for legacy SOL coins. |
 
-The new account size is `BONDING_CURVE_NEW_SIZE = 151` bytes, defined at [vendor/pump-sdk-npm/src/sdk.ts](../vendor/pump-sdk-npm/src/sdk.ts) line 118. The pre-upgrade size (115 bytes by widely-reported accounts of the change) is no longer referenced as a constant in the vendored SDK; size-based discrimination is best done by reading the present `BONDING_CURVE_NEW_SIZE` constant rather than hardcoding the legacy size.
+The new account size is `BONDING_CURVE_NEW_SIZE = 151` bytes. The pre-upgrade layout is `BONDING_CURVE_OLD_SIZE = 115` bytes (8-byte discriminator + 107 data bytes). Both constants are exported from [src/solana/index.ts](../src/solana/index.ts):
+
+```ts
+import { BONDING_CURVE_OLD_SIZE, BONDING_CURVE_NEW_SIZE } from "@nirholas/agent-payments-sdk/solana";
+// BONDING_CURVE_OLD_SIZE === 115  (pre-v2 layout)
+// BONDING_CURVE_NEW_SIZE === 151  (post-2026-05-07 layout)
+```
+
+Use these named exports for size-based discrimination rather than hardcoding the integers.
 
 ## 4. Quote-mint resolution
 

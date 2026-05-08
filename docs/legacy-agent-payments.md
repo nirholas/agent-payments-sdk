@@ -22,7 +22,7 @@ The two programs do not share PDAs. An agent registered on one deployment is inv
 | Coin's tokenized-agent record was created via `pump-sdk` 1.35's `isTokenizedAgent: true` flag | Legacy |
 | New tokenized-agent registration on a freshly created coin | Modern (`PumpAgent` / `PumpAgentOffline`) |
 | Wallet/tooling has hardcoded `pUmPFn9...` | Legacy |
-| You need `closeAccount`, native-SOL `agentTransferExtraLamports`, or `BuildAcceptPaymentParams` compute-budget helpers | Modern (these methods are not exposed on `LegacyPumpAgentOffline`) |
+| You need native-SOL `agentTransferExtraLamports` or `BuildAcceptPaymentParams` compute-budget helpers | Modern (these methods are not exposed on `LegacyPumpAgentOffline`) |
 | You are migrating from a legacy agent | Use both — call legacy methods to drain, then use modern `create` |
 
 ## 3. API reference: `LegacyPumpAgentOffline`
@@ -182,7 +182,22 @@ const ix = await offline.extendAccount({ account, user });
 const ix = await offline.updateAuthority({ authority, newAuthority });
 ```
 
-The legacy client surface stops here. There is no `closeAccount`, `acceptPaymentBuilt`, or compute-budget builder — those are modern-only additions in [src/solana/PumpAgentOffline.ts](../src/solana/PumpAgentOffline.ts).
+### `closeAccount(params)`
+
+Closes an on-chain account and returns its rent lamports to the signer. Maps to the `closeAccount` IDL instruction (discriminator `[125, 255, 149, 14, 110, 34, 72, 24]`); the program derives `globalConfig` via PDA automatically.
+
+| Field | Type | Description |
+|---|---|---|
+| `account` | `PublicKey` | The account to close (writable). |
+| `user` | `PublicKey` | Signer; receives the reclaimed lamports. |
+
+Returns: `Promise<TransactionInstruction>`.
+
+```ts
+const ix = await offline.closeAccount({ account: tokenAgentPaymentsPDA, user: authority });
+```
+
+`acceptPaymentBuilt` and compute-budget builders are modern-only additions in [src/solana/PumpAgentOffline.ts](../src/solana/PumpAgentOffline.ts).
 
 ## 4. API reference: `LegacyPumpAgent`
 
@@ -241,7 +256,7 @@ Tokenized agents are bound to the program they were registered on. There is no o
 Practical migration:
 
 1. **Drain.** Call `LegacyPumpAgentOffline.distributePayments` for each currency, then `LegacyPumpAgentOffline.withdraw` to move funds out.
-2. **Close (optional, off-SDK).** The legacy program defines a `closeAccount` instruction in its IDL ([src/solana/legacy-agent-payments/idl.ts](../src/solana/legacy-agent-payments/idl.ts) line ~1624), but `LegacyPumpAgentOffline` does not expose a wrapper — invoke it via the underlying Anchor `Program` if needed, or skip and leave the account in place.
+2. **Close (optional).** Call `LegacyPumpAgentOffline.closeAccount({ account: tokenAgentPaymentsPDA, user: authority })` to reclaim rent lamports from the agent record.
 3. **Re-register.** Call `PumpAgentOffline.create` (modern, see [src/solana/PumpAgentOffline.ts](../src/solana/PumpAgentOffline.ts)) on the same mint with the desired `agentAuthority` and `buybackBps`.
 
 The two records can coexist on chain; downstream consumers must read whichever program their tooling targets.
