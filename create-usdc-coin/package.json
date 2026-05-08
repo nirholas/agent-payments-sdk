@@ -1,0 +1,20 @@
+{
+  "name": "@pump-fun-skills/create-usdc-coin",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Create USDC-paired coins on pump.fun",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "check-usdc-whitelist": "node scripts/check-usdc-whitelist.mjs",
+    "simulate-create": "node scripts/simulate-create-usdc-coin.mjs",
+    "build-create-usdc-coin-tx": "node scripts/build-create-usdc-coin-tx.mjs"
+  },
+  "dependencies": {
+    "@pump-fun/agent-payments-sdk": "^3.0.3",
+    "@pump-fun/pump-sdk": "^1.35.0",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "bn.js": "^5.2.2"
+  }
+}
