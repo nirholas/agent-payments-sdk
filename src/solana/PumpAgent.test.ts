@@ -54,15 +54,14 @@ describe("PumpAgent.getAllCurrencyBalances", () => {
 
     const agent = new PumpAgent(agentMint, "mainnet", connection);
 
-    // Mock GlobalConfig fetch via the Anchor program account namespace.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (agent as any).program.account.globalConfig.fetch = vi.fn().mockResolvedValue({
+    // Spy on getGlobalConfig which internally calls program.account.GlobalConfig.fetch.
+    vi.spyOn(agent, "getGlobalConfig").mockResolvedValue({
       supportedCurrenciesMint: [
         USDC_MINT,
         otherMint,
         ...Array(8).fill(PublicKey.default),
       ],
-    });
+    } as never);
 
     const balances = await agent.getAllCurrencyBalances();
 
@@ -101,10 +100,10 @@ describe("PumpAgent.getAllCurrencyBalances", () => {
     } as unknown as import("@solana/web3.js").Connection;
 
     const agent = new PumpAgent(agentMint, "mainnet", connection);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (agent as any).program.account.globalConfig.fetch = vi.fn().mockResolvedValue({
+
+    vi.spyOn(agent, "getGlobalConfig").mockResolvedValue({
       supportedCurrenciesMint: Array(10).fill(PublicKey.default),
-    });
+    } as never);
 
     const balances = await agent.getAllCurrencyBalances();
     expect(balances.size).toBe(1);

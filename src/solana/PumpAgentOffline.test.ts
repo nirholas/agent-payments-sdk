@@ -8,10 +8,7 @@ import {
   USDC_MINT,
   decodeBondingCurveQuoteMint,
 } from "./PumpAgentOffline";
-import {
-  CurrencyNotSupportedError,
-  JupiterUnavailableError,
-} from "./errors";
+import { JupiterUnavailableError } from "./errors";
 import { getBondingCurvePDA } from "./pdas";
 
 function buildBondingCurveBuffer(quoteMint: PublicKey): Buffer {
@@ -37,7 +34,7 @@ function fakeAccountInfo(
 function makeMockProgram(supportedMints: PublicKey[]) {
   return {
     account: {
-      globalConfig: {
+      GlobalConfig: {
         fetch: vi
           .fn()
           .mockResolvedValue({ supportedCurrenciesMint: supportedMints }),
@@ -143,12 +140,12 @@ describe("PumpAgentOffline.acceptPaymentForCoin", () => {
   });
 });
 
-describe("PumpAgentOffline.validateCoinCompatibility", () => {
+describe("PumpAgentOffline.validateCurrencySupport", () => {
   beforeEach(() => {
     PumpAgentOffline._clearCoinQuoteMintCache();
   });
 
-  it("throws CurrencyNotSupportedError when quote mint is not in GlobalConfig", async () => {
+  it("returns supported=false when quote mint is not in GlobalConfig", async () => {
     const baseMint = Keypair.generate().publicKey;
     const bcBuf = buildBondingCurveBuffer(USDC_MINT);
     const connection = {
@@ -162,11 +159,11 @@ describe("PumpAgentOffline.validateCoinCompatibility", () => {
     );
 
     await expect(
-      agent.validateCoinCompatibility(connection, baseMint),
-    ).rejects.toBeInstanceOf(CurrencyNotSupportedError);
+      agent.validateCurrencySupport({ connection, baseMint }),
+    ).resolves.toMatchObject({ supported: false });
   });
 
-  it("does not throw for SOL (NATIVE_MINT) coins regardless of GlobalConfig", async () => {
+  it("returns supported=true for SOL (NATIVE_MINT) coins regardless of GlobalConfig", async () => {
     const baseMint = Keypair.generate().publicKey;
     const bcBuf = buildBondingCurveBuffer(PublicKey.default);
     const connection = {
@@ -179,11 +176,11 @@ describe("PumpAgentOffline.validateCoinCompatibility", () => {
     );
 
     await expect(
-      agent.validateCoinCompatibility(connection, baseMint),
-    ).resolves.toBeUndefined();
+      agent.validateCurrencySupport({ connection, baseMint }),
+    ).resolves.toMatchObject({ supported: true });
   });
 
-  it("passes when quote mint IS in GlobalConfig", async () => {
+  it("returns supported=true when quote mint IS in GlobalConfig", async () => {
     const baseMint = Keypair.generate().publicKey;
     const bcBuf = buildBondingCurveBuffer(USDC_MINT);
     const connection = {
@@ -196,40 +193,29 @@ describe("PumpAgentOffline.validateCoinCompatibility", () => {
     );
 
     await expect(
-      agent.validateCoinCompatibility(connection, baseMint),
-    ).resolves.toBeUndefined();
+      agent.validateCurrencySupport({ connection, baseMint }),
+    ).resolves.toMatchObject({ supported: true });
   });
 });
 
-describe("PumpAgentOffline.buildBuybackSwapInstructionData", () => {
+describe("PumpAgentOffline.buildJupiterSwapData (static)", () => {
   const originalFetch = globalThis.fetch;
-
-  beforeEach(() => {
-    PumpAgentOffline._clearCoinQuoteMintCache();
-  });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
-  it("returns a non-empty Buffer for a SOL coin and asserts inputMint=NATIVE_MINT", async () => {
-    const baseMint = Keypair.generate().publicKey;
-    const bcBuf = buildBondingCurveBuffer(PublicKey.default);
-    const connection = {
-      getAccountInfo: vi.fn().mockResolvedValue(fakeAccountInfo(bcBuf)),
-    } as unknown as import("@solana/web3.js").Connection;
-
+  it("returns a non-empty Buffer with SOL as inputMint", async () => {
+    const outputMint = Keypair.generate().publicKey;
     const sampleData = Buffer.from([1, 2, 3, 4, 5]).toString("base64");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/quote?")) {
         expect(url).toContain(`inputMint=${NATIVE_MINT.toBase58()}`);
-        expect(url).toContain(`outputMint=${baseMint.toBase58()}`);
+        expect(url).toContain(`outputMint=${outputMint.toBase58()}`);
         expect(url).toContain("slippageBps=50");
-        return new Response(JSON.stringify({ outAmount: "100" }), {
-          status: 200,
-        });
+        return new Response(JSON.stringify({ outAmount: "100" }), { status: 200 });
       }
       if (url.includes("/swap-instructions")) {
         return new Response(
@@ -241,10 +227,9 @@ describe("PumpAgentOffline.buildBuybackSwapInstructionData", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const agent = PumpAgentOffline.load(Keypair.generate().publicKey);
-    const data = await agent.buildBuybackSwapInstructionData({
-      connection,
-      baseMint,
+    const data = await PumpAgentOffline.buildJupiterSwapData({
+      inputMint: NATIVE_MINT,
+      outputMint,
       amount: new BN(1_000_000_000),
     });
 
@@ -253,21 +238,14 @@ describe("PumpAgentOffline.buildBuybackSwapInstructionData", () => {
     expect(Array.from(data)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it("returns a non-empty Buffer for a USDC coin and asserts inputMint=USDC", async () => {
-    const baseMint = Keypair.generate().publicKey;
-    const bcBuf = buildBondingCurveBuffer(USDC_MINT);
-    const connection = {
-      getAccountInfo: vi.fn().mockResolvedValue(fakeAccountInfo(bcBuf)),
-    } as unknown as import("@solana/web3.js").Connection;
-
+  it("returns a non-empty Buffer with USDC as inputMint", async () => {
+    const outputMint = Keypair.generate().publicKey;
     const sampleData = Buffer.from([9, 8, 7]).toString("base64");
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.includes("/quote?")) {
         expect(url).toContain(`inputMint=${USDC_MINT.toBase58()}`);
-        return new Response(JSON.stringify({ outAmount: "1" }), {
-          status: 200,
-        });
+        return new Response(JSON.stringify({ outAmount: "1" }), { status: 200 });
       }
       if (url.includes("/swap-instructions")) {
         return new Response(
@@ -279,33 +257,27 @@ describe("PumpAgentOffline.buildBuybackSwapInstructionData", () => {
     });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const agent = PumpAgentOffline.load(Keypair.generate().publicKey);
-    const data = await agent.buildBuybackSwapInstructionData({
-      connection,
-      baseMint,
-      amount: 1_000_000n,
+    const data = await PumpAgentOffline.buildJupiterSwapData({
+      inputMint: USDC_MINT,
+      outputMint,
+      amount: new BN(1_000_000),
     });
     expect(data.length).toBe(3);
   });
 
-  it("throws JupiterUnavailableError when /quote returns 5xx", async () => {
-    const baseMint = Keypair.generate().publicKey;
-    const bcBuf = buildBondingCurveBuffer(USDC_MINT);
-    const connection = {
-      getAccountInfo: vi.fn().mockResolvedValue(fakeAccountInfo(bcBuf)),
-    } as unknown as import("@solana/web3.js").Connection;
+  it("throws JupiterUnavailableError when /quote returns 5xx after 3 retries", async () => {
+    const fetchMock = vi.fn(async () => new Response("nope", { status: 503 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    globalThis.fetch = vi.fn(async () =>
-      new Response("nope", { status: 503 }),
-    ) as unknown as typeof fetch;
-
-    const agent = PumpAgentOffline.load(Keypair.generate().publicKey);
+    const outputMint = Keypair.generate().publicKey;
     await expect(
-      agent.buildBuybackSwapInstructionData({
-        connection,
-        baseMint,
-        amount: 1n,
+      PumpAgentOffline.buildJupiterSwapData({
+        inputMint: USDC_MINT,
+        outputMint,
+        amount: new BN(1),
       }),
     ).rejects.toBeInstanceOf(JupiterUnavailableError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
