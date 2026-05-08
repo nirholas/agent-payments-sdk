@@ -12,6 +12,7 @@
     "build-create-coin-tx": "node scripts/build-create-coin-tx.mjs"
   },
   "dependencies": {
+    "@nirholas/agent-payments-sdk": "file:..",
     "@pump-fun/agent-payments-sdk": "^3.0.3",
     "@pump-fun/pump-sdk": "^1.35.0",
     "@pump-fun/pump-swap-sdk": "^1.15.0",
