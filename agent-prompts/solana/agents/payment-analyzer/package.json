@@ -1,0 +1,23 @@
+{
+  "name": "@nirholas/pump-payment-analyzer",
+  "version": "0.1.0",
+  "description": "CLI tool to fetch and report on-chain USDC payment history for a Pump Agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "report": "tsx analyzer.ts report",
+    "summary": "tsx analyzer.ts summary",
+    "payers": "tsx analyzer.ts payers",
+    "export": "tsx analyzer.ts export"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}

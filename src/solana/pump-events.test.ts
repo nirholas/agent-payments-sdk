@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * Fixture-based tests for the pump bonding-curve event parser.
  * Fixtures were captured from mainnet websocket logs — they are real bytes,

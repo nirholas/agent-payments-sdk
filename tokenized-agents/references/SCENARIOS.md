@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Scenario Tests
 
 ## Scenario 1: Happy Path — Pay and Verify

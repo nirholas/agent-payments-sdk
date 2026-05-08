@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Claim Cashback
 
 The `claim_cashback_v2` instruction claims cashback accrued in a user's volume accumulator. It supports both legacy SOL cashback and non-SOL quote mint cashback through the same interface. The instruction is permissionless: `user` is the cashback recipient, but does not need to sign the transaction.

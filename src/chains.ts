@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import type { EvmChainConfig, SupportedEvmChainId } from "./types.js";
 
 export const EVM_CHAINS: Record<SupportedEvmChainId, EvmChainConfig> = {

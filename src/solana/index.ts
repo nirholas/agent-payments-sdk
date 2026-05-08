@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * @pump-fun/agent-payments-sdk
  * TypeScript SDK for Pump Agent Payments

@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /** Debug: dump first 20 events (any name) with isBuy field if present. */
 import { Connection } from "@solana/web3.js";
 import { PUMP_BONDING_CURVE_PROGRAM_ID, createPumpEventParser } from "../src/solana/pump-events.js";

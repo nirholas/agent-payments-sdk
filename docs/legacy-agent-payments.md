@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Legacy Agent Payments (1.0.7)
 
 Reference for the legacy `@pump-fun/agent-payments-sdk` 1.0.7 client vendored into this package as [src/solana/legacy-agent-payments/](../src/solana/legacy-agent-payments/) and re-exported under the `legacyAgentPayments` namespace from [src/solana/index.ts](../src/solana/index.ts).

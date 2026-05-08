@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * Vendored 1.0.7 source of `@pump-fun/agent-payments-sdk` reconstructed from
  * the published npm bundle. The 1.0.7 deployment lives at program ID

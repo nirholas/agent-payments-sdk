@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 // ── Solana — full source (PumpAgent, PumpAgentOffline, PDAs, events, x402, solana-agent-kit)
 export * from "./solana/index.js";
 

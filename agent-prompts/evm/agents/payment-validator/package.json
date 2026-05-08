@@ -1,0 +1,22 @@
+{
+  "name": "evm-payment-validator",
+  "version": "0.1.0",
+  "description": "EVM x402 payment proof decoder, validator, and Express middleware for Pump Agent cross-chain payments",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "tsx cli.ts",
+    "test": "tsx test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nirholas/agent-payments-sdk": "file:../../../.."
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "express": "^4.18.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

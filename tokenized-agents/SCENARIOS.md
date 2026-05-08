@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Tokenized-agent end-to-end scenarios
 
 Each scenario walks one realistic flow from pre-state to post-state, with the

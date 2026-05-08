@@ -1,0 +1,23 @@
+{
+  "name": "buyback-trigger",
+  "version": "1.0.0",
+  "description": "Monitors the Pump Agent buyback vault USDC balance and triggers agent token buybacks via Jupiter V6",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx agent.ts",
+    "start:auto": "tsx agent.ts --auto",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@nirholas/agent-payments-sdk": "*",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

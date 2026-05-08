@@ -1,0 +1,20 @@
+{
+  "name": "viem-wallet",
+  "version": "1.0.0",
+  "description": "Multi-chain EVM USDC wallet — balance, approve, transfer, and bridge to Solana via viem WalletClient",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx wallet.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}

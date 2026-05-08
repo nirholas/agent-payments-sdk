@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Pump program
 
 Pump program allows creating SPL coins that are instantly tradeable on a bonding curve without having to seed liquidity.

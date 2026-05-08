@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import type { Address } from "viem";
 import type { CrossChainPaymentStatusResult, SupportedEvmChainId } from "../types.js";
 import { getPaymentStatus } from "../evm/validate.js";

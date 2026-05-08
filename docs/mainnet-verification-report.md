@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Mainnet On-Chain Verification — pump.fun v2 Bonding Curve
 
 | Field | Value |

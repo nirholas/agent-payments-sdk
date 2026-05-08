@@ -1,0 +1,23 @@
+{
+  "name": "claude-x402-agent",
+  "version": "1.0.0",
+  "description": "Claude-powered AI agent that autonomously discovers x402-protected APIs, decides whether to pay in USDC, and returns results — all in a single conversational turn.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx agent.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@nirholas/agent-payments-sdk": "*",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

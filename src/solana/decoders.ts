@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import { OFFLINE_PUMP_PROGRAM } from "./program";
 import type {
   GlobalConfig,

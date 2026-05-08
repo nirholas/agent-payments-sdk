@@ -1,0 +1,20 @@
+{
+  "name": "x402-fetch-client",
+  "version": "1.0.0",
+  "description": "EVM USDC x402 autonomous fetch client — pays HTTP 402 gate via cross-chain bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "vault-monitor",
+  "version": "1.0.0",
+  "description": "Long-running daemon that watches Pump Agent USDC vaults and auto-distributes when the payment vault crosses a threshold",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx monitor.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@nirholas/agent-payments-sdk": "*",
+    "@solana/spl-token": "^0.4.13",
+    "@solana/web3.js": "^1.98.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

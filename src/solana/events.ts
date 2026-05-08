@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import { PublicKey, type Connection } from "@solana/web3.js";
 import { BN, EventParser, type Program } from "@coral-xyz/anchor";
 import type { PumpAgentPayments as PumpAgentPaymentsIDL } from "./idl/pump_agent_payments";

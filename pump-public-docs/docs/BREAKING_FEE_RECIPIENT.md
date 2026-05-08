@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Program Upgrade
 
 Hi. We will be doing a breaking program upgrade on April 28th, 16:00 UTC, to both the pump bonding curve program and the pump swap amm program. In order to make sure your integrations do not break please see the instructions below:

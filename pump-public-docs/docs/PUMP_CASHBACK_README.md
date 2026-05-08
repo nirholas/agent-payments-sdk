@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 ## Overview
 
 Cashback Rewards allows token creators to create coins with "cashback" enabled which redirects the creator fee to the users. Each user would get the creator fee on their swap volume as cashback rather than paying that fee to the coin creator.

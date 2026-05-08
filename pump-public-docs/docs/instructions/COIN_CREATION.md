@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Coin Creation Accounts
 
 The `create_v2` instruction uses the following accounts. Accounts 1-16 are present in the generated IDL. Accounts 17-19 are optional `remaining_accounts` and must be appended in this exact order when creating a coin with a non-native quote mint.

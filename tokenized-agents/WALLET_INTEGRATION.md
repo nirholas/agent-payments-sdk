@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Wallet integration for tokenized-agent flows
 
 This document covers wallet-side concerns that are specific to tokenized

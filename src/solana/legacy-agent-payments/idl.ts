@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * Program IDL for the legacy 1.0.7 release of @pump-fun/agent-payments-sdk.
  * Address: pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4

@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import type { Address } from "viem";
 
 export type EvmChainId = 1 | 8453 | 42161 | 137 | 56 | 43114;

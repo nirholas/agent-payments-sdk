@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * One-shot script: listen on the pump bonding-curve program for ~120s,
  * collect signatures + logs that decode as `TradeEvent` (buy + sell) and

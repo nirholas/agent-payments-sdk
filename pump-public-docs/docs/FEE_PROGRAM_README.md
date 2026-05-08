@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 Hello. We pushed again the update to both Pump and PumpSwap programs which adds the 2 new additional accounts on buy / sell.
 
 On Monday, September 1, 20:00 UTC, these 2 accounts will become mandatory and the programs fee structure will change from the existing one to a dynamic fee structure depending on the current market cap of the coin in lamports. This new fee structure applies only to:

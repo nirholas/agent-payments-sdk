@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Wallet Integration (Frontend)
 
 To let users sign transactions in the browser, install the Solana wallet adapter:

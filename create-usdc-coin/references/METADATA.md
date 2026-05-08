@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Pump.fun coin metadata JSON
 
 `createV2AndBuyV2Instructions` expects a **`uri`** pointing at a JSON document (usually hosted on IPFS). The pump.fun web app builds that JSON after uploading the image and metadata.

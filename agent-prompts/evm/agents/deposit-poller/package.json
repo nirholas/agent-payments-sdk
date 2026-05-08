@@ -1,0 +1,23 @@
+{
+  "name": "deposit-poller",
+  "version": "0.1.0",
+  "description": "EVM→Solana USDC bridge deposit status tracker with HTTP dashboard",
+  "type": "module",
+  "scripts": {
+    "start": "tsx poller.ts",
+    "watch": "tsx poller.ts watch",
+    "build": "tsc --project tsconfig.json",
+    "start:compiled": "node dist/poller.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "better-sqlite3": "^11.10.0",
+    "hono": "^4.7.11"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

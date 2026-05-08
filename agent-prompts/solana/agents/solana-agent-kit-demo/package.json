@@ -1,0 +1,29 @@
+{
+  "name": "@nirholas/solana-agent-kit-demo",
+  "version": "0.1.0",
+  "description": "solana-agent-kit v2 + PumpAgentPaymentsPlugin demo: direct actions, Zod schema validation, and LLM-driven agent loop with Claude",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "balances": "tsx demo.ts balances",
+    "distribute": "tsx demo.ts distribute",
+    "all": "tsx demo.ts all",
+    "validate-schemas": "tsx demo.ts validate-schemas"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.0",
+    "@nirholas/agent-payments-sdk": "file:../../../../",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0",
+    "langchain": "^0.3.0",
+    "solana-agent-kit": "^2.0.10",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}

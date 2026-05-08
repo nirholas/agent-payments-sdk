@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 Pump program will have a breaking upgrade to add support for coin creator fees. Each swap on a not-yet-completed
 bonding curve will send a fee to a coin creator vault account, apart from the already existing protocol fee.
 

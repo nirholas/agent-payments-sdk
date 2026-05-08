@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 PumpSwap (Pump AMM) program will have a breaking upgrade to add support for coin creator fees. Each swap on canonical
 Pump pools will send a fee to a coin creator vault account, apart from the already existing lp fee and protocol fee.
 

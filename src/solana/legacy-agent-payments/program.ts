@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import type { Connection } from "@solana/web3.js";
 import { PublicKey } from "@solana/web3.js";

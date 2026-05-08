@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import type { PublicKey, AccountMeta } from "@solana/web3.js";
 import type { BN } from "@coral-xyz/anchor";
 

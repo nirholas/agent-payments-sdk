@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 export { EvmAgentOffline } from "./EvmAgentOffline.js";
 export { EvmAgent } from "./EvmAgent.js";
 export { AGENT_PAYMENTS_ABI, ERC20_ABI } from "./abi.js";

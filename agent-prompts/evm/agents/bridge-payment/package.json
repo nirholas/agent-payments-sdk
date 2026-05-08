@@ -1,0 +1,26 @@
+{
+  "name": "bridge-payment",
+  "version": "1.0.0",
+  "description": "EVM→Solana USDC bridge payment agent — bridges USDC from any supported EVM chain to a Pump Agent's Solana payment vault",
+  "type": "module",
+  "scripts": {
+    "quote": "tsx agent.ts quote",
+    "send": "tsx agent.ts send",
+    "status": "tsx agent.ts status",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * x402 v2 – HTTP 402 Payment Required protocol for Pump Agent Payments
  *

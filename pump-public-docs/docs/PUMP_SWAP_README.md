@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # PumpSwap (Pump AMM) program
 
 PumpSwap program is a constant-product AMM deployed at address `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA` on

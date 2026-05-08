@@ -1,0 +1,23 @@
+{
+  "name": "invoice-lifecycle",
+  "version": "1.0.0",
+  "description": "CLI agent for managing the complete USDC invoice lifecycle on a Pump Agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx agent.ts",
+    "generate": "tsx agent.ts generate",
+    "distribute": "tsx agent.ts distribute",
+    "status": "tsx agent.ts status"
+  },
+  "dependencies": {
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

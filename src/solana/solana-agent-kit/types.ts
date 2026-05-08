@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import type { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import type { z } from "zod";
 

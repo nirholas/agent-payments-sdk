@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /** Pump.fun cross-chain deposit API (MoonPay-powered) */
 export const PUMP_CROSSCHAIN_API = "https://api.pump.fun/crosschain";
 

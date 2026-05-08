@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 /**
  * Pull the most recent N signatures for the pump bonding-curve program,
  * fetch them, and report event distribution. Used to find a TradeEvent

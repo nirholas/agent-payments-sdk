@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # v2 Trading Reference
 
 Reference for the 2026-05-07 pump-program upgrade and the v2 trading instructions it shipped. Sources: the IDL at [pump-public-docs/idl/pump.json](../pump-public-docs/idl/pump.json), the Rust client at [vendor/pump-rust-client/src/sdk/pump_v2.rs](../vendor/pump-rust-client/src/sdk/pump_v2.rs), and the vendored npm SDK at [vendor/pump-sdk-npm/src/sdk.ts](../vendor/pump-sdk-npm/src/sdk.ts).

@@ -1,3 +1,7 @@
+// agent-payments-sdk
+// Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
+// All rights reserved.
+
 import { encodeAbiParameters, keccak256 } from "viem";
 import type { Address } from "viem";
 

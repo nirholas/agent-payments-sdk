@@ -1,0 +1,22 @@
+{
+  "name": "x402-resource-server",
+  "version": "1.0.0",
+  "description": "Hono HTTP server gating every route behind an x402 USDC payment wall on Solana",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx server.ts",
+    "dev": "tsx watch server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "@solana/web3.js": "^1.98.0",
+    "hono": "^4.6.17"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

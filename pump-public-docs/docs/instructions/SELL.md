@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Sell V2
 
 The `sell_v2` instruction sells base tokens into a bonding curve using the curve's quote mint. Like `buy_v2`, it uses a single unified account interface for both SOL-paired and non-SOL-paired coins.

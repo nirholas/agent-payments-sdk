@@ -1,0 +1,21 @@
+{
+  "name": "stats-api",
+  "version": "1.0.0",
+  "description": "Pump Agent payment stats REST API — Hono + Node",
+  "type": "module",
+  "scripts": {
+    "start": "tsx server.ts",
+    "dev": "tsx --watch server.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "@solana/web3.js": "^1.98.0",
+    "hono": "^4.7.10"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}

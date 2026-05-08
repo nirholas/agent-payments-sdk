@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # Buy V2
 
 The `buy_v2` instruction buys base tokens from a bonding curve using the curve's quote mint. Unlike the legacy `buy` instruction, all accounts are passed through a single unified interface for both SOL-paired and non-SOL-paired coins.

@@ -1,0 +1,24 @@
+{
+  "name": "multi-chain-router",
+  "version": "1.0.0",
+  "description": "EVM multi-chain USDC payment router — selects the cheapest bridge path to Solana",
+  "type": "module",
+  "scripts": {
+    "balances": "tsx router.ts balances",
+    "quotes": "tsx router.ts quotes",
+    "pay": "tsx router.ts pay",
+    "status": "tsx router.ts status",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

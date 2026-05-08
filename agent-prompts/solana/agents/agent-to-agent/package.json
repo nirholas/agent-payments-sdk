@@ -1,0 +1,25 @@
+{
+  "name": "agent-to-agent",
+  "version": "1.0.0",
+  "description": "Solana USDC agent-to-agent micropayment protocol using x402 and pump-agent scheme",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "tsx server-b.ts",
+    "client": "tsx client-a.ts",
+    "dev:server": "tsx watch server-b.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@nirholas/agent-payments-sdk": "file:../../../../",
+    "@solana/web3.js": "^1.98.0",
+    "bs58": "^4.0.1",
+    "hono": "^4.6.17"
+  },
+  "devDependencies": {
+    "@types/bs58": "^4.0.4",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

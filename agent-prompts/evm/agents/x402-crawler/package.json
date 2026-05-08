@@ -1,0 +1,25 @@
+{
+  "name": "x402-crawler",
+  "version": "0.1.0",
+  "description": "EVM USDC autonomous x402 endpoint crawler and payment agent",
+  "type": "module",
+  "scripts": {
+    "crawl": "tsx crawler.ts crawl",
+    "discover": "tsx crawler.ts discover",
+    "report": "tsx crawler.ts report",
+    "history": "tsx crawler.ts history",
+    "purge": "tsx crawler.ts purge",
+    "build": "tsc --project tsconfig.json",
+    "start:compiled": "node dist/crawler.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

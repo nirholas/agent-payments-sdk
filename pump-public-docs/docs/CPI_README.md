@@ -1,3 +1,5 @@
+<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
+
 # CPI into pump from your own Anchor program
 
 For CPI into pump's `buy_v2`, `sell_v2`, or any other pump instruction,

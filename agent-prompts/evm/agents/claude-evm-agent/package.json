@@ -1,0 +1,20 @@
+{
+  "name": "claude-evm-agent",
+  "version": "1.0.0",
+  "description": "Claude-powered autonomous EVM USDC x402 payment agent — discovers and pays for HTTP 402 endpoints via cross-chain bridge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx agent.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}
