@@ -1,12 +1,22 @@
 import { z } from "zod";
 import {
+  Keypair,
   PublicKey,
+  TransactionMessage,
+  VersionedTransaction,
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { NATIVE_MINT, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { BN } from "@coral-xyz/anchor";
 
 import { PumpAgent } from "../PumpAgent";
 import { PumpAgentOffline } from "../PumpAgentOffline";
+import {
+  PUMP_SDK,
+  PumpTradeClient,
+  USDC_MINT,
+} from "../PumpTradeClient.js";
+import { WhitelistMonitor } from "../WhitelistMonitor.js";
 import type { Action, SolanaAgentKitLike } from "./types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -29,6 +39,32 @@ function serializeIx(ix: TransactionInstruction) {
 
 function agent(kit: SolanaAgentKitLike, mint: string): PumpAgent {
   return new PumpAgent(pk(mint), "mainnet", kit.connection);
+}
+
+async function buildAndPartialSignTx(
+  kit: SolanaAgentKitLike,
+  instructions: TransactionInstruction[],
+  extraSigners: Keypair[] = [],
+): Promise<string> {
+  const { blockhash } = await kit.connection.getLatestBlockhash();
+  const message = new TransactionMessage({
+    payerKey: kit.wallet_address,
+    recentBlockhash: blockhash,
+    instructions,
+  }).compileToV0Message();
+  const tx = new VersionedTransaction(message);
+  if (extraSigners.length > 0) {
+    const knownKeys = new Set(
+      message.staticAccountKeys.map((k) => k.toBase58()),
+    );
+    const signable = extraSigners.filter((s) =>
+      knownKeys.has(s.publicKey.toBase58()),
+    );
+    if (signable.length > 0) {
+      tx.sign(signable);
+    }
+  }
+  return Buffer.from(tx.serialize()).toString("base64");
 }
 
 // ─── Action definitions ───────────────────────────────────────────────────────
@@ -521,6 +557,311 @@ export const updateBuybackBpsAction: Action = {
   },
 };
 
+// ─── v2 trading actions ───────────────────────────────────────────────────────
+
+export const pumpBuyV2Action: Action = {
+  name: "pump_buy_v2",
+  similes: [
+    "buy pump tokens v2",
+    "buy from bonding curve v2",
+    "buy pump coin",
+    "buy usdc-paired pump coin",
+  ],
+  description:
+    "Buy tokens from a pump.fun bonding curve. Works for both SOL-paired " +
+    "and USDC-paired coins. quoteAmount is in lamports for SOL or USDC " +
+    "base units (1e6) for USDC.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          quoteAmount: "1000000",
+          slippagePct: "5",
+        },
+        output: {
+          tx: "<base64 versioned tx>",
+          quoteMint: "So11111111111111111111111111111111111111112",
+          expectedBaseTokens: "1234567",
+        },
+        explanation: "Buy with 0.001 SOL on a SOL-paired coin.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string(),
+    quoteAmount: z.string(),
+    slippagePct: z.number().default(5),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection, {
+      publicKey: kit.wallet_address,
+    });
+    const { instructions, quoteMint, expectedBaseTokens } =
+      await client.buildBuyInstructions({
+        mint: pk(input.mint),
+        quoteAmount: new BN(input.quoteAmount),
+        slippagePct: input.slippagePct,
+      });
+    const tx = await buildAndPartialSignTx(kit, instructions);
+    return {
+      tx,
+      quoteMint: quoteMint.toBase58(),
+      expectedBaseTokens: expectedBaseTokens.toString(),
+    };
+  },
+};
+
+export const pumpSellV2Action: Action = {
+  name: "pump_sell_v2",
+  similes: [
+    "sell pump tokens v2",
+    "sell to bonding curve v2",
+    "sell pump coin",
+    "sell usdc-paired pump coin",
+  ],
+  description:
+    "Sell tokens into any pump.fun bonding curve (SOL- or USDC-paired). " +
+    "baseAmount is the amount of token to sell, in token base units.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          baseAmount: "1000000",
+          slippagePct: "5",
+        },
+        output: {
+          tx: "<base64 versioned tx>",
+          quoteMint: "So11111111111111111111111111111111111111112",
+          expectedQuoteOut: "987654",
+        },
+        explanation: "Sell 1M token base units back to the curve.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string(),
+    baseAmount: z.string(),
+    slippagePct: z.number().default(5),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection, {
+      publicKey: kit.wallet_address,
+    });
+    const { instructions, quoteMint, expectedQuoteOut } =
+      await client.buildSellInstructions({
+        mint: pk(input.mint),
+        baseAmount: new BN(input.baseAmount),
+        slippagePct: input.slippagePct,
+      });
+    const tx = await buildAndPartialSignTx(kit, instructions);
+    return {
+      tx,
+      quoteMint: quoteMint.toBase58(),
+      expectedQuoteOut: expectedQuoteOut.toString(),
+    };
+  },
+};
+
+export const pumpBuyExactQuoteInAction: Action = {
+  name: "pump_buy_exact_quote_in",
+  similes: [
+    "buy with exact quote",
+    "spend exact sol/usdc on pump",
+    "exact-in pump buy",
+  ],
+  description:
+    "Spend exactly `spendableQuoteIn` of the curve's quote currency and " +
+    "receive at least `minBaseOut` tokens. Uses buy_exact_quote_in_v2.",
+  examples: [
+    [
+      {
+        input: {
+          mint: "So11111111111111111111111111111111111111112",
+          spendableQuoteIn: "1000000",
+          minBaseOut: "100",
+        },
+        output: {
+          tx: "<base64 versioned tx>",
+          quoteMint: "So11111111111111111111111111111111111111112",
+        },
+        explanation: "Spend 0.001 SOL for at least 100 tokens.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string(),
+    spendableQuoteIn: z.string(),
+    minBaseOut: z.string(),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection, {
+      publicKey: kit.wallet_address,
+    });
+    const { instructions, quoteMint } =
+      await client.buildBuyExactQuoteInInstructions({
+        mint: pk(input.mint),
+        spendableQuoteIn: new BN(input.spendableQuoteIn),
+        minBaseOut: new BN(input.minBaseOut),
+      });
+    const tx = await buildAndPartialSignTx(kit, instructions);
+    return { tx, quoteMint: quoteMint.toBase58() };
+  },
+};
+
+export const pumpClaimCashbackAction: Action = {
+  name: "pump_claim_cashback",
+  similes: [
+    "claim pump cashback",
+    "redeem pump cashback",
+    "claim volume cashback",
+  ],
+  description:
+    "Claim cashback from pump.fun volume accumulator. Omit quoteMint to " +
+    "auto-discover all claimable quote mints.",
+  examples: [
+    [
+      {
+        input: {},
+        output: {
+          txs: '["<base64 tx>", "<base64 tx>"]',
+        },
+        explanation:
+          "Auto-discover and claim cashback for every claimable quote mint.",
+      },
+    ],
+  ],
+  schema: z.object({
+    quoteMint: z.string().optional(),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection, {
+      publicKey: kit.wallet_address,
+    });
+    const results = await client.buildClaimCashbackInstructions({
+      quoteMint: input.quoteMint ? pk(input.quoteMint) : undefined,
+    });
+    const txs = await Promise.all(
+      results.map(async (r) => ({
+        tx: await buildAndPartialSignTx(kit, r.instructions),
+        quoteMint: r.quoteMint.toBase58(),
+      })),
+    );
+    return { txs };
+  },
+};
+
+export const pumpCheckUsdcWhitelistAction: Action = {
+  name: "pump_check_usdc_whitelist",
+  similes: [
+    "is usdc whitelisted on pump",
+    "check usdc pump whitelist",
+    "can i create usdc-paired pump coin",
+  ],
+  description:
+    "Check if USDC-paired pump coin creation is enabled. Returns " +
+    "whitelisted: true/false and the full whitelist.",
+  examples: [
+    [
+      {
+        input: {},
+        output: {
+          whitelisted: "true",
+          currentWhitelist: '["EPjFWdd5..."]',
+        },
+        explanation: "USDC is currently whitelisted.",
+      },
+    ],
+  ],
+  schema: z.object({}),
+  handler: async (kit) => {
+    const whitelisted = await WhitelistMonitor.isWhitelisted(
+      kit.connection,
+      USDC_MINT,
+    );
+    const currentWhitelist = await WhitelistMonitor.getCurrentWhitelist(
+      kit.connection,
+    );
+    return {
+      whitelisted,
+      currentWhitelist: currentWhitelist.map((m) => m.toBase58()),
+    };
+  },
+};
+
+export const pumpCreateUsdcCoinAction: Action = {
+  name: "pump_create_usdc_coin",
+  similes: [
+    "create usdc-paired pump coin",
+    "launch usdc pump coin",
+    "create v2 usdc coin",
+  ],
+  description:
+    "Create a new USDC-paired pump.fun coin. usdcAmount is the initial " +
+    "buy in USDC base units (1000000 = 1 USDC). Fails with a clear error " +
+    "if USDC is not yet whitelisted.",
+  examples: [
+    [
+      {
+        input: {
+          name: "MyCoin",
+          symbol: "MYC",
+          metadataUri: "https://example.com/metadata.json",
+          usdcAmount: "1000000",
+          mayhemMode: "false",
+          cashback: "false",
+        },
+        output: {
+          tx: "<base64 versioned tx>",
+          mintPublicKey: "<mint pubkey>",
+        },
+        explanation: "Create a new USDC-paired coin with 1 USDC initial buy.",
+      },
+    ],
+  ],
+  schema: z.object({
+    name: z.string(),
+    symbol: z.string(),
+    metadataUri: z.string(),
+    usdcAmount: z.string(),
+    mayhemMode: z.boolean().default(false),
+    cashback: z.boolean().default(false),
+  }),
+  handler: async (kit, input) => {
+    const whitelisted = await WhitelistMonitor.isWhitelisted(
+      kit.connection,
+      USDC_MINT,
+    );
+    if (!whitelisted) {
+      throw new Error(
+        "USDC not whitelisted: USDC-paired coin creation is not yet enabled on the pump program. " +
+          "Check pump_check_usdc_whitelist for the current whitelist state.",
+      );
+    }
+
+    const mintKeypair = Keypair.generate();
+    const instructions = await PUMP_SDK.createV2AndBuyV2Instructions({
+      mint: mintKeypair.publicKey,
+      name: input.name,
+      symbol: input.symbol,
+      uri: input.metadataUri,
+      creator: kit.wallet_address,
+      user: kit.wallet_address,
+      amount: new BN(0),
+      quoteAmount: new BN(input.usdcAmount),
+      mayhemMode: input.mayhemMode,
+      cashback: input.cashback,
+      quoteMint: USDC_MINT,
+    });
+    const tx = await buildAndPartialSignTx(kit, instructions, [mintKeypair]);
+    return {
+      tx,
+      mintPublicKey: mintKeypair.publicKey.toBase58(),
+    };
+  },
+};
+
 export const allActions: Action[] = [
   createAgentPaymentsAction,
   buildPaymentInstructionsAction,
@@ -531,4 +872,10 @@ export const allActions: Action[] = [
   getConfigAction,
   getPaymentStatsAction,
   updateBuybackBpsAction,
+  pumpBuyV2Action,
+  pumpSellV2Action,
+  pumpBuyExactQuoteInAction,
+  pumpClaimCashbackAction,
+  pumpCheckUsdcWhitelistAction,
+  pumpCreateUsdcCoinAction,
 ];

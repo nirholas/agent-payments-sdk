@@ -181,5 +181,11 @@ export {
   getConfigAction,
   getPaymentStatsAction,
   updateBuybackBpsAction,
+  pumpBuyV2Action,
+  pumpSellV2Action,
+  pumpBuyExactQuoteInAction,
+  pumpClaimCashbackAction,
+  pumpCheckUsdcWhitelistAction,
+  pumpCreateUsdcCoinAction,
   allActions,
 } from "./actions";
