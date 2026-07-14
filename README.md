@@ -162,4 +162,4 @@ The package is ESM-first (`"type": "module"`) and Node 18+ is required for the g
 
 ## License
 
-ISC — see [package.json](package.json).
+All rights reserved. See [LICENSE](LICENSE).
