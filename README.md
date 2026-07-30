@@ -192,3 +192,10 @@ The package is ESM-first (`"type": "module"`) and Node 18+ is required for the g
 ## License
 
 All rights reserved. See [LICENSE](LICENSE).
+
+## Documentation
+
+Full documentation site: **https://nirholas.github.io/agent-payments-sdk/**
+
+- [Getting started](docs/getting-started.md) covers install and first run.
+- [Examples](docs/examples.md) has copy-paste snippets.
