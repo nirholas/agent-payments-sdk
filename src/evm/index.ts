@@ -9,8 +9,11 @@ export {
   EVM_CHAINS,
   SUPPORTED_CHAIN_IDS,
   NATIVE_TOKEN_ADDRESS,
+  UNDEPLOYED_AGENT_PAYMENTS,
   getEvmChain,
   isEvmChainSupported,
+  isAgentPaymentsDeployed,
+  resolveAgentPaymentsAddress,
 } from "./addresses.js";
 export { getInvoiceId, buildInvoiceWindow, generateMemo } from "./invoice.js";
 export { parseEvmAgentEvents } from "./events.js";

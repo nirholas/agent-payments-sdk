@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nirholas/agent-payments-sdk": "^0.1.0",
+    "@nirholas/agent-payments-sdk": "file:../../../..",
     "viem": "^2.21.0"
   },
   "devDependencies": {

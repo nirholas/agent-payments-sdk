@@ -4,18 +4,24 @@
 Build a complete GMGN API client for three.ws using Ed25519 request signing. The client handles authentication, request signing, response parsing, and all smart money endpoints.
 
 ## Credentials
-- API key: `gmgn_280b9baec9dd1348cf3801f4d21ca373` (or `process.env.GMGN_API_KEY`)
-- Private key PEM: `/workspaces/agent-payments-sdk/.gmgn_private.pem` (Ed25519 PKCS#8 PEM)
-- Public key PEM: `/workspaces/agent-payments-sdk/.gmgn_public.pem`
 
-The private key file contains:
+Never hardcode these in the prompt, the client, or any committed file. Read them
+from the environment at runtime:
+
+- API key: `process.env.GMGN_API_KEY`
+- Private key PEM: `process.env.GMGN_PRIVATE_KEY_PEM`, or a path in
+  `process.env.GMGN_PRIVATE_KEY_PATH` (Ed25519 PKCS#8 PEM). Local key files are
+  gitignored as `.gmgn_private.pem` / `.gmgn_public.pem`.
+
+The PEM is a PKCS#8 Ed25519 private key of the form:
+
 ```
 -----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIMaKTl5t3+337CoosxxeEGLwRI7pVFuZfQSJKop5eK3y
+<base64 body, 48 bytes DER, never commit this>
 -----END PRIVATE KEY-----
 ```
 
-This is a PKCS#8 Ed25519 private key. Node.js `crypto.createPrivateKey()` handles it directly.
+Node.js `crypto.createPrivateKey()` accepts that PEM directly.
 
 ## Environment
 - Working directory: `/workspaces/three.ws`
@@ -40,7 +46,7 @@ Where:
 Signature = Ed25519(privateKey, Message)
 
 Headers:
-  X-API-KEY:   gmgn_280b9baec9dd1348cf3801f4d21ca373
+  X-API-KEY:   ${process.env.GMGN_API_KEY}
   X-TIMESTAMP: ${timestamp}
   X-SIGNATURE: ${base64(signature)}
 ```
@@ -259,6 +265,14 @@ Create `/workspaces/three.ws/api/_lib/gmgn.js`:
 import { GmgnClient } from '../../src/kol/gmgn-client.js';
 import { readFileSync } from 'fs';
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`GmgnClient: missing required env var ${name}.`);
+  }
+  return value;
+}
+
 function loadPrivateKeyPem() {
   // Option 1: env var (production)
   if (process.env.GMGN_PRIVATE_KEY_PEM) {
@@ -281,7 +295,7 @@ let _client;
 export function getGmgnClient() {
   if (!_client) {
     _client = new GmgnClient({
-      apiKey: process.env.GMGN_API_KEY || 'gmgn_280b9baec9dd1348cf3801f4d21ca373',
+      apiKey: requireEnv('GMGN_API_KEY'),
       privateKeyPem: loadPrivateKeyPem(),
       proxyUrl: process.env.GMGN_PROXY_URL,
     });

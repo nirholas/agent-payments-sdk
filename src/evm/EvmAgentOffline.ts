@@ -9,7 +9,11 @@ import {
   type Hex,
 } from "viem";
 import { AGENT_PAYMENTS_ABI, ERC20_ABI } from "./abi.js";
-import { getEvmChain, NATIVE_TOKEN_ADDRESS, type EvmChainId } from "./addresses.js";
+import {
+  NATIVE_TOKEN_ADDRESS,
+  resolveAgentPaymentsAddress,
+  type EvmChainId,
+} from "./addresses.js";
 import { getInvoiceId, buildInvoiceWindow, generateMemo } from "./invoice.js";
 import type {
   EvmAcceptPaymentParams,
@@ -28,19 +32,27 @@ import type {
  * No RPC connection required. Mirrors PumpAgentOffline from the Solana SDK.
  *
  * Usage:
- *   const agent = new EvmAgentOffline("0xYourAgentToken", 8453);
- *   const bundle = agent.buildAcceptPaymentTx({ ... });
+ *   const agent = new EvmAgentOffline("0xYourAgentToken", 8453, "0xDeployedAgentPayments");
+ *   const bundle = agent.buildAcceptPaymentTx(params, payer);
  *   // send bundle.approval then bundle.tx via user's wallet
+ *
+ * No chain in EVM_CHAINS carries a recorded AgentPayments deployment yet, so
+ * the third argument is currently required. Omitting it throws rather than
+ * building transactions against the zero address.
  */
 export class EvmAgentOffline {
   readonly agentToken: Address;
   readonly chainId: EvmChainId;
   readonly contractAddress: Address;
 
-  constructor(agentToken: Address, chainId: EvmChainId) {
+  constructor(
+    agentToken: Address,
+    chainId: EvmChainId,
+    contractAddress?: Address,
+  ) {
     this.agentToken = agentToken;
     this.chainId = chainId;
-    this.contractAddress = getEvmChain(chainId).agentPayments;
+    this.contractAddress = resolveAgentPaymentsAddress(chainId, contractAddress);
   }
 
   // ── Agent setup ────────────────────────────────────────────────────────────

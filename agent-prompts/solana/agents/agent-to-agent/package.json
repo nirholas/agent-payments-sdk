@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "@nirholas/agent-payments-sdk": "file:../../../../",
+    "@nirholas/agent-payments-sdk": "file:../../../..",
     "@solana/web3.js": "^1.98.0",
     "bs58": "^4.0.1",
     "hono": "^4.6.17"

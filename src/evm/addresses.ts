@@ -20,8 +20,14 @@ export interface EvmChainConfig {
   agentPayments: Address;
 }
 
-/** Placeholder — replace with deployed contract addresses post-deployment */
-const UNDEPLOYED = "0x0000000000000000000000000000000000000000" as Address;
+/**
+ * Sentinel for chains where the AgentPayments contract has no recorded
+ * deployment yet. Replace an entry with the real address once it is deployed.
+ */
+export const UNDEPLOYED_AGENT_PAYMENTS =
+  "0x0000000000000000000000000000000000000000" as Address;
+
+const UNDEPLOYED = UNDEPLOYED_AGENT_PAYMENTS;
 
 export const EVM_CHAINS: Record<EvmChainId, EvmChainConfig> = {
   1: {
@@ -96,6 +102,36 @@ export function getEvmChain(chainId: EvmChainId): EvmChainConfig {
 
 export function isEvmChainSupported(chainId: number): chainId is EvmChainId {
   return chainId in EVM_CHAINS;
+}
+
+/** True when this chain has a real AgentPayments deployment recorded. */
+export function isAgentPaymentsDeployed(chainId: EvmChainId): boolean {
+  return getEvmChain(chainId).agentPayments !== UNDEPLOYED_AGENT_PAYMENTS;
+}
+
+/**
+ * Resolve the AgentPayments contract address to build transactions against.
+ *
+ * Pass `override` to target your own deployment. Without an override, a chain
+ * that has no recorded deployment throws instead of silently returning the zero
+ * address, which would otherwise produce an `approve(0x0, maxUint256)` and a
+ * payment call to `0x0`.
+ */
+export function resolveAgentPaymentsAddress(
+  chainId: EvmChainId,
+  override?: Address,
+): Address {
+  if (override) return override;
+  const chain = getEvmChain(chainId);
+  if (chain.agentPayments === UNDEPLOYED_AGENT_PAYMENTS) {
+    throw new Error(
+      `AgentPayments has no recorded deployment on ${chain.name} (chainId ${chainId}), ` +
+        `so every transaction built for it would target the zero address. ` +
+        `Pass your deployed contract address explicitly, e.g. ` +
+        `new EvmAgentOffline(agentToken, ${chainId}, "0xYourDeployedAgentPayments").`,
+    );
+  }
+  return chain.agentPayments;
 }
 
 /** Native ETH/BNB/AVAX sentinel address (matches EIP-7528) */

@@ -28,10 +28,13 @@ import { NATIVE_TOKEN_ADDRESS } from "./addresses.js";
  * Mirrors PumpAgent from the Solana SDK.
  *
  * Usage:
- *   const agent = new EvmAgent("0xYourAgentToken", 8453);
+ *   const agent = new EvmAgent("0xYourAgentToken", 8453, undefined, "0xDeployedAgentPayments");
  *   const config = await agent.getAgentConfig();
  *   const balances = await agent.getBalances("0xUSDC...");
  *   const valid = await agent.validateInvoicePayment({ invoiceId, payer, amount, ... });
+ *
+ * `contractAddress` is currently required for every chain, since none of them
+ * carry a recorded AgentPayments deployment. See EvmAgentOffline.
  */
 export class EvmAgent extends EvmAgentOffline {
   private readonly client: PublicClient;
@@ -39,9 +42,10 @@ export class EvmAgent extends EvmAgentOffline {
   constructor(
     agentToken: Address,
     chainId: EvmChainId,
-    rpcUrl?: string
+    rpcUrl?: string,
+    contractAddress?: Address
   ) {
-    super(agentToken, chainId);
+    super(agentToken, chainId, contractAddress);
     const chain = getEvmChain(chainId);
     this.client = createPublicClient({
       transport: http(rpcUrl ?? chain.rpcUrl),
