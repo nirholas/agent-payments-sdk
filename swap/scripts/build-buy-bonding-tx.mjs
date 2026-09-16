@@ -131,6 +131,7 @@ async function main() {
     mintSupply,
     bondingCurve,
     amount: inputSolAmount,
+    quoteMint: bondingCurve.quoteMint,
   });
 
   // 2. Token amount -> precise SOL cost (accounts for rounding in bonding curve math)
@@ -140,6 +141,7 @@ async function main() {
     mintSupply,
     bondingCurve,
     amount: tokenAmount,
+    quoteMint: bondingCurve.quoteMint,
   });
 
   const sdkInstructions = await PUMP_SDK.buyInstructions({

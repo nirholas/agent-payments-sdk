@@ -113,12 +113,12 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
-    "@pump-fun/pump-sdk": "^1.35.0",
+    "@pump-fun/pump-sdk": "^2.0.0",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.3",
     "viem": "^2.21.0",
-    "zod": "^3.23.0"
+    "zod": "^3.0.0"
   },
   "peerDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -137,7 +137,8 @@
     }
   },
   "devDependencies": {
-    "@pump-fun/agent-payments-sdk": "file:./vendor/agent-payments-sdk-107",
+    "@pump-fun/agent-payments-sdk-legacy": "npm:@pump-fun/agent-payments-sdk@1.0.7",
+    "@types/bn.js": "^5.2.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.5",
     "tsup": "^8.3.5",

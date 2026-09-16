@@ -33,7 +33,7 @@ single mint therefore has at most one agent record, on exactly one program.
 - **Legacy 1.0.7 path.** Calling `pump-sdk`'s
   [`createV2AndBuyInstructions({ isTokenizedAgent: true })`](../vendor/pump-sdk-npm/src/sdk.ts)
   appends an `agent_initialize` ix from `@pump-fun/agent-payments-sdk@1.0.7`,
-  which `pump-sdk@1.35.0` pins as a transitive dependency. The resulting agent
+  which `pump-sdk` pins as a transitive dependency (1.35.x and 2.x alike). The resulting agent
   lives on `pUmPFn9...`. This is the historical default for any caller that
   uses `pump-sdk` directly without overriding the agent program.
 - **Current 3.0.x path.** Calling `PumpAgentOffline.load(mint).create(...)`

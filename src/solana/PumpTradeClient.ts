@@ -165,11 +165,11 @@ export class PumpTradeClient {
     const mintSupply = bondingCurve.tokenTotalSupply;
 
     const expectedBaseTokens = getBuyTokenAmountFromSolAmount({
-      global, feeConfig, mintSupply, bondingCurve, amount: quoteAmount,
+      global, feeConfig, mintSupply, bondingCurve, amount: quoteAmount, quoteMint,
     });
 
     const preciseQuoteAmount = getBuySolAmountFromTokenAmount({
-      global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens,
+      global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens, quoteMint,
     });
 
     const maxQuoteCost = new BN(
@@ -276,7 +276,7 @@ export class PumpTradeClient {
     const mintSupply = bondingCurve.tokenTotalSupply;
 
     const expectedBaseTokens = getBuyTokenAmountFromSolAmount({
-      global, feeConfig, mintSupply, bondingCurve, amount: quoteAmount,
+      global, feeConfig, mintSupply, bondingCurve, amount: quoteAmount, quoteMint,
     });
 
     if (expectedBaseTokens.lte(new BN(0))) {
@@ -286,7 +286,7 @@ export class PumpTradeClient {
     }
 
     const preciseQuoteAmount = getBuySolAmountFromTokenAmount({
-      global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens,
+      global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens, quoteMint,
     });
 
     const mayhemMode = bondingCurve.isMayhemMode ?? false;

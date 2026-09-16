@@ -62,7 +62,8 @@ The script writes a JSON line to stdout:
   "quoteMint": "So11111111111111111111111111111111111111112",
   "solLamports": "1000000",
   "mayhemMode": false,
-  "cashback": false,
+  "holderReward": false,
+  "creatorFeeBps": null,
   "tokenizedAgent": true,
   "buybackBps": 5000,
   "frontRunnerProtection": false

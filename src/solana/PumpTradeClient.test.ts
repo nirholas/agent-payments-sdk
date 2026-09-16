@@ -89,7 +89,16 @@ function makeFeeConfig() {
       protocolFeeBps: new BN(100),
       creatorFeeBps: new BN(500),
     },
-    feeTiers: [{ marketCapLamportsThreshold: new BN(0), fees: { protocolFeeBps: new BN(100), creatorFeeBps: new BN(500) } }],
+    feeTiers: [{ marketCapLamportsThreshold: new BN(0), fees: { lpFeeBps: new BN(0), protocolFeeBps: new BN(100), creatorFeeBps: new BN(500) } }],
+    // SDK 2.0 decodes these fields even for pre-upgrade accounts: an empty
+    // stable schedule falls back to feeTiers and zero exotic fees fall back
+    // to flatFees. Keep the fixture faithful to that compatibility contract.
+    stableFeeTiers: [],
+    exoticFlatFees: {
+      lpFeeBps: new BN(0),
+      protocolFeeBps: new BN(0),
+      creatorFeeBps: new BN(0),
+    },
   };
 }
 

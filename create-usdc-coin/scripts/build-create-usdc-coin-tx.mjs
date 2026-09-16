@@ -58,7 +58,8 @@ Required:
 Optional:
   --usdc-mint <PUBKEY>      Override USDC mint (default: mainnet USDC)
   --mayhem-mode             (default: off)
-  --cashback                (default: off)
+  --holder-reward           Route creator fees to token holders (default: off)
+  --creator-fee-bps <int>   Configurable creator fee in basis points (omit for protocol default)
   --tokenized-agent         Enable tokenized agent; accepts USDC payments natively (default: off)
   --buyback-bps <int>       Buyback basis points for tokenized agent (default: ${DEFAULT_BUYBACK_BPS} = 50%)
   --alt-address <PUBKEY>    Address Lookup Table override
@@ -99,7 +100,11 @@ async function main() {
       "mint-keypair-out": { type: "string" },
       "usdc-mint": { type: "string" },
       "mayhem-mode": { type: "boolean", default: false },
+      // Parsed only so a stale invocation gets an explicit, actionable error
+      // instead of parseArgs' generic "Unknown option".
       cashback: { type: "boolean", default: false },
+      "holder-reward": { type: "boolean", default: false },
+      "creator-fee-bps": { type: "string" },
       "tokenized-agent": { type: "boolean", default: false },
       "buyback-bps": { type: "string" },
       "alt-address": { type: "string" },
@@ -128,7 +133,17 @@ async function main() {
   const resolvedOut = resolve(process.cwd(), outPath);
 
   const mayhemMode = Boolean(values["mayhem-mode"]);
-  const cashback = Boolean(values.cashback);
+  if (values.cashback) {
+    throw new Error(
+      "--cashback is no longer supported: pump.fun rejects new cashback coins on-chain " +
+        "(error 6082 \"Cashback coins can no longer be created\"). Existing cashback coins still " +
+        "trade and claim normally. To share creator fees with holders, use --holder-reward.",
+    );
+  }
+  const holderReward = Boolean(values["holder-reward"]);
+  const creatorFeeBps = values["creator-fee-bps"] != null && values["creator-fee-bps"] !== ""
+    ? new BN(parsePositiveInt(values["creator-fee-bps"], 1))
+    : undefined;
   const tokenizedAgent = Boolean(values["tokenized-agent"]);
   const buybackBps =
     values["buyback-bps"] != null
@@ -209,15 +224,17 @@ async function main() {
   const mint = mintKeypair.publicKey;
   const quoteAmount = new BN(usdcAmount);
 
-  // getBuyTokenAmountFromSolAmount is quote-mint-agnostic: it uses the
-  // virtual/real reserve ratios in the Global config which work for any
-  // quote mint (USDC or SOL).
+  // getBuyTokenAmountFromSolAmount prices any quote mint: pump-sdk 2 selects
+  // the quote's own virtual reserves and fee schedule from `quoteMint`, and
+  // `creatorFeeBps` must match the create so the buy covers the real fees.
   const tokenAmount = getBuyTokenAmountFromSolAmount({
     global,
     feeConfig,
     mintSupply: null,
     bondingCurve: null,
     amount: quoteAmount,
+    quoteMint,
+    creatorFeeBps,
   });
 
   const sdkInstructions = await PUMP_SDK.createV2AndBuyV2Instructions({
@@ -231,7 +248,8 @@ async function main() {
     amount: tokenAmount,
     quoteAmount,
     mayhemMode,
-    cashback,
+    holderReward,
+    creatorFeeBps,
     quoteMint,
     quoteTokenProgram,
   });
@@ -273,7 +291,8 @@ async function main() {
     quoteMint: quoteMint.toBase58(),
     usdcAmount,
     mayhemMode,
-    cashback,
+    holderReward,
+    creatorFeeBps: creatorFeeBps?.toString() ?? null,
     tokenizedAgent,
     ...(tokenizedAgent ? { buybackBps } : {}),
     frontRunnerProtection,

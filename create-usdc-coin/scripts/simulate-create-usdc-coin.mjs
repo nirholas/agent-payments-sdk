@@ -53,7 +53,8 @@ Optional:
   --network <mainnet|devnet>  Default: mainnet
   --usdc-mint <PUBKEY>        Override USDC mint (defaults per network)
   --mayhem-mode               (default: off)
-  --cashback                  (default: off)
+  --holder-reward             Route creator fees to token holders (default: off)
+  --creator-fee-bps <int>     Configurable creator fee in basis points (omit for protocol default)
   --compute-units <int>       Default: ${CREATE_AND_BUY_COMPUTE_UNITS}
   --alt-address <PUBKEY>      Address Lookup Table override
   -h, --help
@@ -73,7 +74,11 @@ async function main() {
       network: { type: "string", default: "mainnet" },
       "usdc-mint": { type: "string" },
       "mayhem-mode": { type: "boolean", default: false },
+      // Parsed only so a stale invocation gets an explicit, actionable error
+      // instead of parseArgs' generic "Unknown option".
       cashback: { type: "boolean", default: false },
+      "holder-reward": { type: "boolean", default: false },
+      "creator-fee-bps": { type: "string" },
       "compute-units": { type: "string" },
       "alt-address": { type: "string" },
       help: { type: "boolean", short: "h" },
@@ -100,7 +105,17 @@ async function main() {
       : new PublicKey(defaultUsdc);
 
   const mayhemMode = Boolean(values["mayhem-mode"]);
-  const cashback = Boolean(values.cashback);
+  if (values.cashback) {
+    throw new Error(
+      "--cashback is no longer supported: pump.fun rejects new cashback coins on-chain " +
+        "(error 6082 \"Cashback coins can no longer be created\"). Existing cashback coins still " +
+        "trade and claim normally. To share creator fees with holders, use --holder-reward.",
+    );
+  }
+  const holderReward = Boolean(values["holder-reward"]);
+  const creatorFeeBps = values["creator-fee-bps"] != null && values["creator-fee-bps"] !== ""
+    ? new BN(parsePositiveInt(values["creator-fee-bps"], 1))
+    : undefined;
   const computeUnits = values["compute-units"]
     ? parsePositiveInt(values["compute-units"], CREATE_AND_BUY_COMPUTE_UNITS)
     : CREATE_AND_BUY_COMPUTE_UNITS;
@@ -143,6 +158,8 @@ async function main() {
     mintSupply: null,
     bondingCurve: null,
     amount: quoteAmount,
+    quoteMint,
+    creatorFeeBps,
   });
 
   const sdkInstructions = await PUMP_SDK.createV2AndBuyV2Instructions({
@@ -156,7 +173,8 @@ async function main() {
     amount: tokenAmount,
     quoteAmount,
     mayhemMode,
-    cashback,
+    holderReward,
+    creatorFeeBps,
     quoteMint,
     quoteTokenProgram,
   });

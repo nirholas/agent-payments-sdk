@@ -61,7 +61,10 @@ Required:
 
 Optional:
   --mayhem-mode             Enable mayhem mode (default: off)
-  --cashback                Enable cashback for this coin (default: off)
+  --holder-reward           Route this coin's creator fees to its token holders
+                            (holder-rewards PDA becomes the on-chain creator; default: off)
+  --creator-fee-bps <int>   Configurable creator fee in basis points
+                            (1..global.maxConfigurableCreatorFeeBps; omit for the protocol default)
   --tokenized-agent         Enable tokenized agent (default: off; requires initial buy > 0)
   --legacy-agent            Initialize agent on the legacy 1.0.7 program
                             (pUmPFn9...) instead of the default 3.0.x
@@ -91,7 +94,11 @@ async function main() {
       "sol-lamports": { type: "string" },
       "mint-keypair-out": { type: "string" },
       "mayhem-mode": { type: "boolean", default: false },
+      // Parsed only so a stale invocation gets an explicit, actionable error
+      // instead of parseArgs' generic "Unknown option".
       cashback: { type: "boolean", default: false },
+      "holder-reward": { type: "boolean", default: false },
+      "creator-fee-bps": { type: "string" },
       "tokenized-agent": { type: "boolean", default: false },
       "legacy-agent": { type: "boolean", default: false },
       "buyback-bps": { type: "string" },
@@ -120,7 +127,17 @@ async function main() {
   const outPath = requireString("--mint-keypair-out", values["mint-keypair-out"]);
   const resolvedOut = resolve(process.cwd(), outPath);
   const mayhemMode = Boolean(values["mayhem-mode"]);
-  const cashback = Boolean(values.cashback);
+  if (values.cashback) {
+    throw new Error(
+      "--cashback is no longer supported: pump.fun rejects new cashback coins on-chain " +
+        "(error 6082 \"Cashback coins can no longer be created\"). Existing cashback coins still " +
+        "trade and claim normally. To share creator fees with holders, use --holder-reward.",
+    );
+  }
+  const holderReward = Boolean(values["holder-reward"]);
+  const creatorFeeBps = values["creator-fee-bps"] != null && values["creator-fee-bps"] !== ""
+    ? new BN(parsePositiveInt(values["creator-fee-bps"], 1))
+    : undefined;
   const tokenizedAgent = Boolean(values["tokenized-agent"]);
   const legacyAgent = Boolean(values["legacy-agent"]);
   const buybackBps = values["buyback-bps"] != null
@@ -194,6 +211,8 @@ async function main() {
     mintSupply: null,
     bondingCurve: null,
     amount: quoteAmount,
+    quoteMint: quoteMintOverride ?? NATIVE_MINT,
+    creatorFeeBps,
   });
 
   let sdkInstructions;
@@ -216,7 +235,8 @@ async function main() {
       amount: tokenAmount,
       quoteAmount,
       mayhemMode,
-      cashback,
+      holderReward,
+      creatorFeeBps,
       quoteMint: quoteMintOverride,
       quoteTokenProgram,
     });
@@ -232,7 +252,8 @@ async function main() {
       amount: tokenAmount,
       solAmount: quoteAmount,
       mayhemMode,
-      cashback,
+      holderReward,
+      creatorFeeBps,
     });
   }
 
@@ -283,7 +304,8 @@ async function main() {
     quoteMint: (quoteMintOverride ?? NATIVE_MINT).toBase58(),
     solLamports,
     mayhemMode,
-    cashback,
+    holderReward,
+    creatorFeeBps: creatorFeeBps?.toString() ?? null,
     tokenizedAgent,
     ...(tokenizedAgent ? { buybackBps } : {}),
     agentProgram: agentProgramLabel,

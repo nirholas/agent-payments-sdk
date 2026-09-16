@@ -20,7 +20,8 @@ metadata:
 - [ ] Framework confirmed (Next.js, Express, CLI scripts only, other)
 - [ ] Coin name, symbol, and metadata URI (or plan to upload) confirmed — see [references/METADATA.md](references/METADATA.md)
 - [ ] Initial buy amount confirmed (SOL in lamports)
-- [ ] Cashback desired? (default off)
+- [ ] Holder rewards desired? Routes all creator fees to the coin's holders instead of the creator wallet (default off). Cashback coins can no longer be created.
+- [ ] Custom creator fee (basis points)? Only if the protocol has configurable creator fees enabled (default: protocol rate).
 - [ ] Mayhem mode desired? (default off)
 - [ ] Tokenized agent desired? (default off), If Yes then with what Buyback percentage.
 - [ ] Front-runner protection desired? If yes, confirm tip amount (default 0.0001 SOL). Transactions will be sent **only** to Jito block engine endpoints.
@@ -45,7 +46,6 @@ Builds a create + initial buy transaction. The server generates a mint keypair a
   "uri": "https://ipfs.io/ipfs/Qm...",
   "solLamports": "1000000",
   "mayhemMode": false,
-  "cashback": false,
   "tokenizedAgent": false,
   "buybackBps": 5000,
   "frontRunningProtection": false,
@@ -57,6 +57,8 @@ Builds a create + initial buy transaction. The server generates a mint keypair a
 ```
 
 Only `user`, `name`, `symbol`, `uri`, and `solLamports` are required. All other fields are optional with sensible defaults.
+
+> **Cashback launches are retired.** pump.fun no longer lets anyone create a new cashback coin: a create with cashback enabled fails on-chain with error 6082 `CashbackDeprecated` ("Cashback coins can no longer be created"), and `@pump-fun/pump-sdk` 2.x throws `CashbackDeprecatedError` before a transaction is even built. Never send `"cashback": true`. Coins that already launched with cashback keep trading and their traders can still claim (see the swap and coin-fees skills). To share creator fees with holders on a new coin, launch it as a **holder-reward** coin instead (`--holder-reward` in the script below).
 
 > **`tipAmount`** is a Jito tip in **SOL** (e.g. `0.0001` for 100,000 lamports). Only relevant when `frontRunningProtection` is `true`.
 
@@ -91,9 +93,9 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 | Operation                                | Script                               | Example                                                                                                                                                                                                                                                                  |
 | ---------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Fetch coin state (HTTP)                  | `scripts/fetch-coin.mjs`             | `node scripts/fetch-coin.mjs --mint <MINT> --subset`                                                                                                                                                                                                                     |
-| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--cashback] [--tokenized-agent --buyback-bps 5000] [--legacy-agent] [--quote-mint <USDC>] [--alt-address <PUBKEY>]`               |
+| Create + initial buy (partial-sign mint) | `scripts/build-create-coin-tx.mjs`   | `node scripts/build-create-coin-tx.mjs --user <PUBKEY> --name "Coin" --symbol "CN" --metadata-uri <URI> --sol-lamports 1000000 --mint-keypair-out ./mint.json [--mayhem-mode] [--holder-reward] [--creator-fee-bps <BPS>] [--tokenized-agent --buyback-bps 5000] [--legacy-agent] [--quote-mint <USDC>] [--alt-address <PUBKEY>]`               |
 
-- Run any script with `--help` for full flags (`--mayhem-mode`, `--tokenized-agent`, `--legacy-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
+- Run any script with `--help` for full flags (`--mayhem-mode`, `--holder-reward`, `--creator-fee-bps`, `--tokenized-agent`, `--legacy-agent`, `--buyback-bps`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, etc.).
 - Tx builders print **one JSON object** on stdout with `transaction` (base64-encoded VersionedTransaction, partially signed when the mint keypair is used on create). **Never** pass end-user private keys into these scripts.
 - **OpenClaw:** If YAML `metadata` ever fails to parse, collapse `metadata` to a single-line JSON object per [OpenClaw skills](https://docs.openclaw.ai/skills/); optional `metadata.openclaw.requires.env: ["SOLANA_RPC_URL"]` can gate load-time eligibility.
 
@@ -172,7 +174,10 @@ Full transaction building (compute budget, blockhash, partial sign) is implement
 | `amount`     | `BN`        | Token amount to buy (6 decimals)                                       |
 | `solAmount`  | `BN`        | SOL for initial buy (lamports)                                         |
 | `mayhemMode` | `boolean`   | Configurable via `--mayhem-mode` flag (default: `false`)               |
-| `cashback`   | `boolean`   | Enable cashback rewards; optional, default `false`                     |
+| `holderReward` | `boolean` | Route creator fees to token holders (the holder-rewards PDA becomes the on-chain creator); `--holder-reward`, default `false`. Throws `HolderRewardDisabledError` while the protocol has it switched off |
+| `creatorFeeBps` | `BN`     | Configurable creator fee, `1..global.maxConfigurableCreatorFeeBps`; `--creator-fee-bps`, omitted by default. Pass the same value to `getBuyTokenAmountFromSolAmount` so the initial buy covers the real fee |
+
+`cashback` is deprecated in `@pump-fun/pump-sdk` 2.x: passing `true` throws `CashbackDeprecatedError` (on-chain error 6082). The script still recognises `--cashback`, but only to exit with an explanation pointing at `--holder-reward`.
 
 When `--tokenized-agent` is enabled, an additional `PumpAgentOffline.load(mint).create(...)` instruction (from `@pump-fun/agent-payments-sdk`) is appended after the create+buy instructions. The `--buyback-bps` flag controls the agent buyback percentage in basis points (default: 5000 = 50%). Tokenized agent coins **must** have an initial buy > 0 SOL.
 
@@ -325,8 +330,8 @@ Then confirm as usual with `connection.confirmTransaction`.
 
 ## End-to-end flow
 
-1. Confirm coin name, symbol, metadata URI, signer wallet, and initial buy amount; set `SOLANA_RPC_URL`. Ask about mayhem mode, tokenized agent (with buyback percentage), cashback, and front-runner protection preferences.
-2. Use `POST /agents/create-coin` to build the transaction. Only use `build-create-coin-tx.mjs` if the user explicitly requests scripts; capture `transaction`. Add `--mayhem-mode`, `--tokenized-agent --buyback-bps <BPS>` (and `--legacy-agent` only when downstream tooling requires the 1.0.7 program — see "Choosing legacy vs modern agent program"), `--cashback`, and/or `--front-runner-protection` (with optional `--tip-sol`) as needed.
+1. Confirm coin name, symbol, metadata URI, signer wallet, and initial buy amount; set `SOLANA_RPC_URL`. Ask about mayhem mode, tokenized agent (with buyback percentage), holder rewards, custom creator fee, and front-runner protection preferences.
+2. Use `POST /agents/create-coin` to build the transaction. Only use `build-create-coin-tx.mjs` if the user explicitly requests scripts; capture `transaction`. Add `--mayhem-mode`, `--tokenized-agent --buyback-bps <BPS>` (and `--legacy-agent` only when downstream tooling requires the 1.0.7 program; see "Choosing legacy vs modern agent program"), `--holder-reward`, `--creator-fee-bps <BPS>`, and/or `--front-runner-protection` (with optional `--tip-sol`) as needed.
 3. Deserialize with `@solana/web3.js` `VersionedTransaction.deserialize`, have user sign (and co-sign create tx).
 4. **Send the transaction:** If `frontRunnerProtection` is `true` in the script output JSON, send **only** to Jito endpoints (see "Transaction assembly and send" above). Otherwise use `sendRawTransaction` + `confirmTransaction`.
 5. Keep `mint-keypair-out` secure; it is required for any mint-authority operations later.

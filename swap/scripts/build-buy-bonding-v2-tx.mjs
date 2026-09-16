@@ -137,6 +137,7 @@ async function main() {
     mintSupply,
     bondingCurve,
     amount: inputQuoteAmount,
+    quoteMint: quoteMint,
   });
 
   const quoteAmount = getBuySolAmountFromTokenAmount({
@@ -145,6 +146,7 @@ async function main() {
     mintSupply,
     bondingCurve,
     amount: tokenAmount,
+    quoteMint: quoteMint,
   });
 
   const sdkInstructions = await PUMP_SDK.buyV2Instructions({

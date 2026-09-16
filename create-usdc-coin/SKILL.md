@@ -20,7 +20,7 @@ metadata:
 - [ ] **Signer wallet** public key (fee payer / creator)
 - [ ] Coin name, symbol, and metadata URI confirmed
 - [ ] Initial buy amount in **USDC** (6 decimals: 1 USDC = `1_000_000` base units)
-- [ ] Cashback desired? (default off)
+- [ ] Holder rewards desired? Routes creator fees to holders (default off). Cashback coins can no longer be created (on-chain error 6082).
 - [ ] Mayhem mode desired? (default off)
 - [ ] Tokenized agent desired? (default off). If Yes: what buyback percentage?
 - [ ] Front-runner protection desired? If yes, confirm tip amount (default 0.0001 SOL)
@@ -111,9 +111,10 @@ you are ready to launch the moment creation goes live.
 - 5 USDC → `--usdc-amount 5000000`
 - 0.5 USDC → `--usdc-amount 500000`
 
-The `getBuyTokenAmountFromSolAmount` helper is quote-mint-agnostic —
-it uses `virtualQuoteReserves / realQuoteReserves` ratios from the Global
-config which work identically for USDC and SOL.
+The `getBuyTokenAmountFromSolAmount` helper prices any quote mint. Since
+`@pump-fun/pump-sdk` 2.0 it takes a required `quoteMint`, which selects that
+quote's virtual reserves and fee schedule when the bonding curve does not exist
+yet, plus an optional `creatorFeeBps` that must match the create instruction.
 
 ---
 
@@ -148,7 +149,8 @@ The script outputs one JSON object:
   "quoteMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
   "usdcAmount": 1000000,
   "mayhemMode": false,
-  "cashback": false,
+  "holderReward": false,
+  "creatorFeeBps": null,
   "tokenizedAgent": false,
   "frontRunnerProtection": false
 }
