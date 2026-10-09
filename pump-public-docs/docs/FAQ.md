@@ -1,5 +1,3 @@
-<!-- agent-payments-sdk | Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas -->
-
 # Frequently Asked Questions
 
 ## How to optimize buy / sell CU limit?
