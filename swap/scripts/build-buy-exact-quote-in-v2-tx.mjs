@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
  * `buy_exact_quote_in_v2`: spend exactly `spendable_quote_in` quote, demand
- * at least `min_tokens_out` base tokens. The TS SDK does not expose a helper
- * for this instruction yet (1.35.0) — we drive the Anchor program directly,
+ * at least `min_tokens_out` base tokens. @pump-fun/pump-sdk 4.x has no
+ * builder for this instruction, so we drive the Anchor program directly,
  * mirroring the rust client's `buy_exact_quote_in_v2_instructions`.
  *
- * Reference: pump-public-docs/idl/pump.ts (instruction `buyExactQuoteInV2`,
- * discriminator [194,171,28,70,104,77,91,47]) and the rust client at
- * vendor/pump-rust-client/src/sdk/pump_v2.rs.
+ * `partial_fill` (OptionBool) only matters on a mayhem curve: set, a buy
+ * larger than the remaining supply stops there; unset, it fails with 6021
+ * `NotEnoughTokensToBuy`. For the leaner v3 path (fees booked on the curve,
+ * swept later) use build-buy-bonding-v3-tx.mjs --exact-quote-in.
+ *
+ * Reference: pump-public-docs/idl/pump.json (instruction
+ * `buy_exact_quote_in_v2`, discriminator [194,171,28,70,104,77,91,47]).
  */
 import { parseArgs } from "node:util";
 import BN from "bn.js";
@@ -44,7 +48,7 @@ import {
 } from "./lib/args.mjs";
 import { buildAndPartialSignTx, transactionToBase64 } from "./lib/tx-build.mjs";
 import { resolveQuoteMint, quoteTokenProgramFromMint } from "./lib/quote-mint.mjs";
-import { pickFeeRecipient, pickBuybackFeeRecipient } from "./lib/fee-recipients.mjs";
+import { pickFeeRecipient, pickGlobalBuybackFeeRecipient } from "./lib/fee-recipients.mjs";
 
 const HELP = `Usage: node scripts/build-buy-exact-quote-in-v2-tx.mjs [options]
 
@@ -59,6 +63,7 @@ Required:
 
 Optional:
   --quote-mint <PUBKEY>        Override quote mint. Default: bondingCurve.quoteMint || wSOL
+  --partial-fill               Mayhem curves: fill up to the remaining supply instead of failing
   --compute-units <int>        Default ${BUY_SELL_DEFAULT_UNITS}
   --priority-micro-lamports <int>
   --front-runner-protection
@@ -77,6 +82,7 @@ async function main() {
       "spendable-quote-in": { type: "string" },
       "min-tokens-out": { type: "string" },
       "quote-mint": { type: "string" },
+      "partial-fill": { type: "boolean", default: false },
       "compute-units": { type: "string" },
       "priority-micro-lamports": { type: "string" },
       "front-runner-protection": { type: "boolean", default: false },
@@ -116,6 +122,7 @@ async function main() {
       ? parsePositiveInt(values["priority-micro-lamports"], 1)
       : null;
   const frontRunnerProtection = Boolean(values["front-runner-protection"]);
+  const partialFill = Boolean(values["partial-fill"]);
   const tipSol = values["tip-sol"] != null ? Number.parseFloat(values["tip-sol"]) : undefined;
   if (tipSol != null && (Number.isNaN(tipSol) || tipSol < 0))
     throw new Error("--tip-sol must be a non-negative number");
@@ -144,7 +151,7 @@ async function main() {
   const mayhemMode = bondingCurve.isMayhemMode ?? false;
 
   const feeRecipient = pickFeeRecipient(global, mayhemMode);
-  const buybackFeeRecipient = pickBuybackFeeRecipient();
+  const buybackFeeRecipient = pickGlobalBuybackFeeRecipient(global);
 
   const associatedQuoteFeeRecipient = getAssociatedTokenAddressSync(
     quoteMint, feeRecipient, true, quoteTokenProgram,
@@ -175,7 +182,7 @@ async function main() {
 
   const program = getPumpProgram(connection);
   const buyExactQuoteInIx = await program.methods
-    .buyExactQuoteInV2(spendableQuoteIn, minTokensOut)
+    .buyExactQuoteInV2(spendableQuoteIn, minTokensOut, { 0: partialFill })
     .accountsPartial({
       global: GLOBAL_PDA,
       baseMint: mint,
@@ -243,6 +250,7 @@ async function main() {
     feeRecipient: feeRecipient.toBase58(),
     buybackFeeRecipient: buybackFeeRecipient.toBase58(),
     mayhemMode,
+    partialFill,
     frontRunnerProtection,
   });
 }

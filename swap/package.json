@@ -14,6 +14,9 @@
     "build-buy-bonding-v2-tx": "node scripts/build-buy-bonding-v2-tx.mjs",
     "build-sell-bonding-v2-tx": "node scripts/build-sell-bonding-v2-tx.mjs",
     "build-buy-exact-quote-in-v2-tx": "node scripts/build-buy-exact-quote-in-v2-tx.mjs",
+    "build-buy-bonding-v3-tx": "node scripts/build-buy-bonding-v3-tx.mjs",
+    "build-sell-bonding-v3-tx": "node scripts/build-sell-bonding-v3-tx.mjs",
+    "build-multi-hop-swap-tx": "node scripts/build-multi-hop-swap-tx.mjs",
     "build-claim-cashback-v2-tx": "node scripts/build-claim-cashback-v2-tx.mjs",
     "build-buy-amm-tx": "node scripts/build-buy-amm-tx.mjs",
     "build-sell-amm-tx": "node scripts/build-sell-amm-tx.mjs",
@@ -21,8 +24,8 @@
     "test:devnet": "node test/v2-flows.test.mjs"
   },
   "dependencies": {
-    "@pump-fun/pump-sdk": "^2.0.0",
-    "@pump-fun/pump-swap-sdk": "^1.20.0",
+    "@pump-fun/pump-sdk": "^4.0.0",
+    "@pump-fun/pump-swap-sdk": "^2.1.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "bn.js": "^5.2.2"

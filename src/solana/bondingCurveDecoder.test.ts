@@ -12,6 +12,7 @@ import {
   getQuoteMintAddress,
   type BondingCurveV1,
   type BondingCurveV2,
+  BONDING_CURVE_ACCOUNT_SIZE,
 } from "./bondingCurveDecoder";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -26,11 +27,19 @@ import {
 const V1_HEX =
   "17b7f83760d8ac607d4c4a6b4ebb030007e9a922070000007db4371fbdbc0200073d8626000000000080c6a47e8d030000";
 
-// V2_HEX: full 151-byte bonding curve for the TEST coin (SOL-quoted, not
+// V2_HEX: pre-upgrade 151-byte bonding curve for the TEST coin (SOL-quoted, not
 // complete, isMayhemMode=false, isCashbackCoin=false, quoteMint=all-zeros).
 // Fetched 2026-05-08 from mainnet PDA 82eTMebeCahzmRNMgRdTWsA7eVBSbJT9iFAfiBF1wpxY.
 const V2_HEX =
   "17b7f83760d8ac607d4c4a6b4ebb030007e9a922070000007db4371fbdbc0200073d8626000000000080c6a47e8d030000c86bbd4049112bd98b89b8d9c7a8eadf2ffafe593c40c953c442eb771f11a39400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+// CURRENT_HEX: a full 166-byte curve written by the October 2026 program,
+// with a non-SOL quote mint, a 300 bps configured creator fee and unswept
+// creator/protocol fees sitting on the curve after v3 trades.
+// Fetched 2026-10-09 (slot 454741295) from mainnet PDA
+// 5Y4diJAetE97pWAcCfc4EtNRoubvYU2uGMyLt8ePkkDA.
+const CURRENT_HEX =
+  "17b7f83760d8ac60f717605d09c40200fde9ba98bd000000f77f4d1178c501004f7fd709340000000080c6a47e8d030000fa903cdd42260fd519c07393c74eebb3b00f939ee68d19a7dfbe3faf24f125b600000c45f7df8d9e72956284933f6d98b757032e83df84604fb5e117fff61d5b12f92c0100000000000000005f415bb300000000058966b30100000000ae6ae38e8900000000000000000000000000000000000000";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -155,13 +164,67 @@ describe("decodeBondingCurve", () => {
       );
     });
 
-    it("virtualQuoteReserves is BN (extended fields present)", () => {
-      // 151 bytes >= 131, so extended fields are decoded
-      expect(bc.virtualQuoteReserves).not.toBeNull();
+    it("virtualQuoteReserves reads the same bytes as virtualSolReserves", () => {
+      expect(bc.virtualQuoteReserves.eq(bc.virtualSolReserves)).toBe(true);
+      expect(bc.realQuoteReserves.eq(bc.realSolReserves)).toBe(true);
     });
 
-    it("realQuoteReserves is BN (extended fields present)", () => {
-      expect(bc.realQuoteReserves).not.toBeNull();
+    it("zero-fills the synthetic-migration fields a 151-byte curve predates", () => {
+      expect(bc.absentFields).toEqual([
+        "post_complete_base_out",
+        "post_complete_quote_in",
+      ]);
+      expect(bc.postCompleteBaseOut.isZero()).toBe(true);
+      expect(bc.postCompleteQuoteIn.isZero()).toBe(true);
+    });
+  });
+
+  describe("current format (166 bytes, after the October 2026 upgrade)", () => {
+    let bc: BondingCurveV2;
+
+    beforeAll(() => {
+      const buf = Buffer.from(CURRENT_HEX, "hex");
+      expect(buf.length).toBe(BONDING_CURVE_ACCOUNT_SIZE);
+      bc = decodeBondingCurve(buf) as BondingCurveV2;
+    });
+
+    it("decodes every field", () => {
+      expect(bc.version).toBe(2);
+      expect(bc.absentFields).toEqual([]);
+    });
+
+    it("reads the quote reserves at offsets 16 and 32", () => {
+      expect(bc.virtualQuoteReserves.toString()).toBe("814311205373");
+      expect(bc.realQuoteReserves.toString()).toBe("223503417167");
+      expect(bc.initialVirtualQuoteReserves.toString()).toBe("590807788206");
+    });
+
+    it("reads the non-SOL quote mint", () => {
+      expect(getQuoteMintAddress(bc)).toBe(
+        "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn",
+      );
+      expect(isSolQuoted(bc)).toBe(false);
+      expect(isUsdcQuoted(bc)).toBe(false);
+    });
+
+    it("reads the configured creator fee and the unswept fee buckets", () => {
+      expect(bc.creatorFeeBps.toNumber()).toBe(300);
+      expect(bc.creatorFee.toString()).toBe("3009102175");
+      expect(bc.protocolFees.toString()).toBe("7304808709");
+      expect(bc.canEditCreatorFee).toBe(false);
+      expect(bc.isHolderReward).toBe(false);
+      expect(bc.depth).toBe(0);
+    });
+
+    it("ignores bytes past the last known field", () => {
+      const longer = Buffer.concat([
+        Buffer.from(CURRENT_HEX, "hex"),
+        Buffer.alloc(16, 0xff),
+      ]);
+      const extended = decodeBondingCurve(longer) as BondingCurveV2;
+      expect(extended.absentFields).toEqual([]);
+      expect(extended.postCompleteQuoteIn.eq(bc.postCompleteQuoteIn)).toBe(true);
+      expect(extended.creatorFee.eq(bc.creatorFee)).toBe(true);
     });
   });
 
@@ -184,16 +247,30 @@ describe("decodeBondingCurve", () => {
       expect(bc.version).toBe(2);
     });
 
-    it("v2 from 115-byte buffer has null extended fields", () => {
+    it("v2 from a 115-byte buffer lists every later field as absent", () => {
       const bc = decodeBondingCurve(Buffer.alloc(115)) as BondingCurveV2;
-      expect(bc.virtualQuoteReserves).toBeNull();
-      expect(bc.realQuoteReserves).toBeNull();
+      expect(bc.absentFields).toEqual([
+        "creator_fee_bps",
+        "can_edit_creator_fee",
+        "is_holder_reward",
+        "creator_fee",
+        "protocol_fees",
+        "depth",
+        "initial_virtual_quote_reserves",
+        "post_complete_base_out",
+        "post_complete_quote_in",
+      ]);
+      expect(bc.creatorFee.isZero()).toBe(true);
     });
 
-    it("v2 from 131-byte buffer has non-null extended fields", () => {
-      const bc = decodeBondingCurve(Buffer.alloc(131)) as BondingCurveV2;
-      expect(bc.virtualQuoteReserves).not.toBeNull();
-      expect(bc.realQuoteReserves).not.toBeNull();
+    it("treats a field cut short by the buffer end as absent", () => {
+      // 129 bytes: creator_fee (125..133) does not fit.
+      const buf = Buffer.alloc(129);
+      buf.writeUInt8(1, 124); // is_holder_reward
+      const bc = decodeBondingCurve(buf) as BondingCurveV2;
+      expect(bc.isHolderReward).toBe(true);
+      expect(bc.absentFields[0]).toBe("creator_fee");
+      expect(bc.creatorFee.isZero()).toBe(true);
     });
 
     it("handles 50-byte buffer (between v1 and v2) as v1", () => {

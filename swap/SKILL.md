@@ -86,10 +86,13 @@ export SOLANA_RPC_URL=https://rpc.solanatracker.io/public
 | Sell (bonding curve, legacy SOL) | `scripts/build-sell-bonding-tx.mjs` | `node scripts/build-sell-bonding-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
 | Buy (bonding curve, **v2 unified**) | `scripts/build-buy-bonding-v2-tx.mjs` | `node scripts/build-buy-bonding-v2-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--quote-mint <USDC>]` |
 | Sell (bonding curve, **v2 unified**) | `scripts/build-sell-bonding-v2-tx.mjs` | `node scripts/build-sell-bonding-v2-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--quote-mint <USDC>]` |
-| Buy exact-quote-in (**v2**) | `scripts/build-buy-exact-quote-in-v2-tx.mjs` | `node scripts/build-buy-exact-quote-in-v2-tx.mjs --mint <MINT> --user <PUBKEY> --spendable-quote-in 1000000 --min-tokens-out 1` |
+| Buy exact-quote-in (**v2**) | `scripts/build-buy-exact-quote-in-v2-tx.mjs` | `node scripts/build-buy-exact-quote-in-v2-tx.mjs --mint <MINT> --user <PUBKEY> --spendable-quote-in 1000000 --min-tokens-out 1 [--partial-fill]` |
+| Buy (bonding curve, **v3**) | `scripts/build-buy-bonding-v3-tx.mjs` | `node scripts/build-buy-bonding-v3-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--exact-quote-in] [--partial-fill]` |
+| Sell (bonding curve, **v3**) | `scripts/build-sell-bonding-v3-tx.mjs` | `node scripts/build-sell-bonding-v3-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
+| Multi-hop swap | `scripts/build-multi-hop-swap-tx.mjs` | `node scripts/build-multi-hop-swap-tx.mjs --user <PUBKEY> --path <SOL>,<MINT> --side buy --amount-in 1000000` |
 | Claim cashback (**v2**) | `scripts/build-claim-cashback-v2-tx.mjs` | `node scripts/build-claim-cashback-v2-tx.mjs --user <PUBKEY> [--quote-mint <USDC>]` |
-| Buy (AMM) | `scripts/build-buy-amm-tx.mjs` | `node scripts/build-buy-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
-| Sell (AMM) | `scripts/build-sell-amm-tx.mjs` | `node scripts/build-sell-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000` |
+| Buy (AMM) | `scripts/build-buy-amm-tx.mjs` | `node scripts/build-buy-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--v2]` |
+| Sell (AMM) | `scripts/build-sell-amm-tx.mjs` | `node scripts/build-sell-amm-tx.mjs --mint <MINT> --user <PUBKEY> --amount 1000000 [--v2]` |
 | Balances | `scripts/print-balances.mjs` | `node scripts/print-balances.mjs --wallet <PUBKEY> --mint <MINT>` |
 
 - Run any script with `--help` for full flags (`--slippage`, `--compute-units`, `--priority-micro-lamports`, `--front-runner-protection`, `--tip-sol`, `--pool` vs `--mint` for AMM, etc.).
@@ -217,13 +220,13 @@ The sell script reads `mayhemMode` and `cashback` from the decoded on-chain bond
 
 ## Buy / sell V2 (unified SOL + USDC)
 
-As of `@pump-fun/pump-sdk@1.35.0` and the bonding-curve program upgrade dated 2026-05-07, three new instructions take a `quote_mint` so the same call works for SOL- and USDC-paired coins:
+Since `@pump-fun/pump-sdk@1.35.0` (this skill now pins `4.0.0`) and the bonding-curve program upgrade dated 2026-05-07, three new instructions take a `quote_mint` so the same call works for SOL- and USDC-paired coins:
 
 | Instruction | TS helper | Local script |
 | --- | --- | --- |
 | `buy_v2` | `PUMP_SDK.buyV2Instructions(...)` | `build-buy-bonding-v2-tx.mjs` |
 | `sell_v2` | `PUMP_SDK.sellV2Instructions(...)` | `build-sell-bonding-v2-tx.mjs` |
-| `buy_exact_quote_in_v2` | _no SDK helper_ — drive Anchor program directly | `build-buy-exact-quote-in-v2-tx.mjs` |
+| `buy_exact_quote_in_v2` | _no SDK helper_: drive the Anchor program directly | `build-buy-exact-quote-in-v2-tx.mjs` |
 | `claim_cashback_v2` | `PUMP_SDK.claimCashbackV2Instruction(...)` | `build-claim-cashback-v2-tx.mjs` |
 
 Quote-mint resolution is identical to the rust client (`vendor/pump-rust-client/src/sdk/pump_v2.rs`):
@@ -252,13 +255,46 @@ USDC mainnet mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`.
 
 `buyV2Instructions` additionally takes `associatedUserAccountInfo`. `sellV2Instructions` does not — selling does not need pre-existing user ATA bookkeeping in the same way.
 
-### Buy exact quote in (no SDK helper yet)
+### Buy exact quote in (v2: no SDK helper)
 
-`@pump-fun/pump-sdk@1.35.0` ships the IDL for `buy_exact_quote_in_v2` (discriminator `[194,171,28,70,104,77,91,47]`) but **not** a TS helper. `scripts/build-buy-exact-quote-in-v2-tx.mjs` constructs it manually via `getPumpProgram(connection).methods.buyExactQuoteInV2(...)`, mirroring the rust client's account derivation in `vendor/pump-rust-client/src/sdk/pump_v2.rs`. Use it when you want **deterministic quote spend** (e.g. "spend exactly 1 USDC, accept whatever tokens"). Fee recipient + buyback fee recipient are picked from `global` and the SDK's static buyback list (`scripts/lib/fee-recipients.mjs`).
+`@pump-fun/pump-sdk@4.0.0` ships the IDL for `buy_exact_quote_in_v2` (discriminator `[194,171,28,70,104,77,91,47]`) but **not** a TS helper. `scripts/build-buy-exact-quote-in-v2-tx.mjs` constructs it manually via `getPumpProgram(connection).methods.buyExactQuoteInV2(spendableQuoteIn, minTokensOut, { 0: partialFill })`, mirroring the rust client's account derivation in `vendor/pump-rust-client/src/sdk/pump_v2.rs`. Use it when you want **deterministic quote spend** (e.g. "spend exactly 1 USDC, accept whatever tokens"). The third argument is the IDL's `OptionBool` struct, so it is always the object `{ 0: boolean }`, never a bare boolean; `--partial-fill` sets it, and it only changes behaviour on a mayhem curve, where a budget past the remaining supply buys what is left instead of failing with 6021 `NotEnoughTokensToBuy`. The fee recipient is picked from `global`, the buyback fee recipient from the live `Global.buybackFeeRecipients` list (`scripts/lib/fee-recipients.mjs`). For a non-cashback coin, `build-buy-bonding-v3-tx.mjs --exact-quote-in` builds the SDK's own `buy_exact_quote_in_v3` instead.
 
 ### Bonding curve struct rename
 
 The v2 program reshapes the on-chain `BondingCurve` account: `virtualSolReserves` → `virtualQuoteReserves`, `realSolReserves` → `realQuoteReserves`, plus a new `quoteMint` field. Legacy SOL coins still report `quoteMint = Pubkey::default()`; the SDK's `decodeBondingCurve` yields the new struct shape regardless. Code that explicitly read `bondingCurve.realSolReserves` will return `undefined` on the new SDK — switch to the quote-named fields. The math helpers (`getBuyTokenAmountFromSolAmount`, etc.) keep their "Sol" name but operate on the renamed fields under the hood.
+
+## Buy / sell v3 (fees held on the curve)
+
+The October 2026 program release adds `buy_v3`, `sell_v3` and `buy_exact_quote_in_v3` (17 accounts each). Prices and fee rates are the same as v2. The difference is where the fees go: only the buyback slice of the protocol fee leaves in the trade, and the rest of the protocol fee and the whole creator fee stay on the curve (`BondingCurve.protocolFees`, `BondingCurve.creatorFee`) until the permissionless `sweep_protocol_fee` / `sweep_creator_fee` pay them out. That makes v3 cheaper in compute and accounts than v2.
+
+| Instruction | TS helper (`@pump-fun/pump-sdk@4.0.0`) | Local script |
+| --- | --- | --- |
+| `buy_v3` | `PUMP_SDK.buyV3Instructions(...)` | `build-buy-bonding-v3-tx.mjs` |
+| `buy_exact_quote_in_v3` | `PUMP_SDK.buyExactQuoteInV3Instructions(...)` | `build-buy-bonding-v3-tx.mjs --exact-quote-in` |
+| `sell_v3` | `PUMP_SDK.sellV3Instructions(...)` | `build-sell-bonding-v3-tx.mjs` |
+
+- State comes from `OnlinePumpSdk.fetchBuyState(mint, user, tokenProgram)` / `fetchSellState(...)`, which also return the curve's normalized `quoteMint` and `quoteTokenProgram`. Buys need `curveBaseTokenBalance` from `fetchBuyState` for the quote helpers.
+- Quote with `getBuyV3TokenAmountFromQuoteAmount` / `getBuyV3QuoteAmountFromTokenAmount` (`global`, `feeConfig`, `mintSupply`, `bondingCurve`, `amount`, `curveBaseTokenBalance`). A buy past the remaining supply completes the curve and buys the rest from the pool the migration creates; the script reports `completesCurve`. Sells use `getSellSolAmountFromTokenAmount`.
+- **Cashback coins are refused** with 6094 `CashbackCoinNotSupported` (`CashbackCoinNotSupportedError` in the SDK). The scripts check `bondingCurve.isCashbackCoin` first; use the v2 scripts for those coins.
+- `partialFill` (`--partial-fill`) matters only on mayhem curves, as on v2.
+- The buyback recipient must be one of `Global.buybackFeeRecipients`; the scripts pick one at random from the live list.
+- A creator who wants the held fees runs `coin-fees/scripts/build-collect-fee-tx.mjs` (direct creator) or `build-distribute-fees-tx.mjs` (sharing config); both put the sweep first in the same transaction.
+
+## Multi-hop swaps
+
+`multi_hop_swap` (pump-amm) swaps exact-in along a chain of pump curves and canonical pump pools in one instruction, checking slippage once on the final amount. The protocol fee is charged once at the leg that trades the user's currency, the creator fee once at the far coin; middle hops charge nothing. A buy climbs a quote chain (`SOL,A,B`: A quoted in SOL, B quoted in A), a sell walks it down (`B,A,SOL`).
+
+```js
+const onlineSdk = new OnlinePumpSdk(connection);
+const hops = await onlineSdk.resolveMultiHopRoute([NATIVE_MINT, mint], "buy");
+const out = await onlineSdk.simulateMultiHopSwap({ user, hops, side: "buy", amountIn });
+const minAmountOut = out.muln(10_000 - slippageBps).divn(10_000);
+const ixs = await PUMP_SDK.multiHopSwapInstructions({ user, hops, side: "buy", amountIn, minAmountOut });
+```
+
+- The instruction has 16 fixed accounts plus 5 per hop. Three hops fit a legacy transaction; longer routes need an address lookup table (`--alt`). Budget about 200k CU per hop; the script sets `100k + 200k * hops` (capped at 1.4M).
+- `simulateMultiHopSwap` runs the real instruction, so `--user` must hold `--amount-in` of the input. A single hop prices exactly like `buy_v3` / `sell_v3`.
+- Mayhem pools and non-canonical pools are not routable.
 
 ## Buy / sell (AMM, post-graduation)
 
@@ -268,6 +304,8 @@ Uses `OnlinePumpAmmSdk.swapSolanaState(pool, user)` and:
 
 - Buy: `PUMP_AMM_SDK.buyQuoteInput` (SOL in) or `PUMP_AMM_SDK.buyBaseInput` (token out)
 - Sell: `PUMP_AMM_SDK.sellBaseInput` (token in) or `PUMP_AMM_SDK.sellQuoteInput` (SOL out target)
+
+`--v2` passes `{ v2: true }` as the fourth argument (`@pump-fun/pump-swap-sdk@2.1.0`), which builds pump-amm `buy_v2` / `sell_v2` (17 accounts) when `supportsTradeV2(pool)` says the pool takes it, and v1 otherwise; the output's `instructionVersion` reports which one was built. v2 books the protocol and creator fees into the pool's own buckets (`Pool.protocolFees`, `Pool.creatorFees`) instead of transferring them per trade, so it uses less compute (a `buy_v2` on a live pool simulated at about 74k CU). The held creator fees reach the creator vault through pump-amm `sweep_creator_fee`, which `@pump-fun/pump-sdk@4.0.0` builds as `PUMP_SDK.sweepPoolCreatorFeeInstruction`; the coin-fees scripts put it before every collect and distribution.
 
 ## Slippage
 
@@ -456,8 +494,9 @@ Pure functions from `@pump-fun/pump-sdk` (see script source for usage):
 - `getBuyTokenAmountFromSolAmount`
 - `getBuySolAmountFromTokenAmount`
 - `getSellSolAmountFromTokenAmount`
+- `getBuyV3TokenAmountFromQuoteAmount`, `getBuyV3QuoteAmountFromTokenAmount` (v3 buys, including the post-completion leg)
 
-All need `global`, `feeConfig` (`fetchFeeConfig()`), `mintSupply`, and `bondingCurve`.
+All need `global`, `feeConfig` (`fetchFeeConfig()`), `mintSupply`, and `bondingCurve`; the v3 helpers also need `curveBaseTokenBalance` from `fetchBuyState`.
 
 ## Error handling and troubleshooting
 
@@ -467,6 +506,9 @@ All need `global`, `feeConfig` (`fetchFeeConfig()`), `mintSupply`, and `bondingC
 - **Insufficient SOL** — user cannot pay buy amount or fees; check `nativeLamports` before building.
 - **Slippage / simulation failures** — increase slippage cautiously, check pool reserves, retry with fresh blockhash (re-run script).
 - **ATA missing** — first buy may create ATA inside the same tx; if a custom flow fails, ensure ATA creation is included or pre-created.
+- **6094 `CashbackCoinNotSupported`**: a v3 trade on a cashback coin. Use the v2 scripts.
+- **6095 `CreatorFeesNotSwept`**: a distribution, CTO or fee-sharing change on a coin whose curve still holds v3 creator fees. Put `PUMP_SDK.sweepCreatorFeeInstruction` first in the same transaction (the coin-fees scripts do).
+- **pump-amm 6084 `MultiHopDiscontinuousPath`**: the `--path` mints do not chain (each hop's base must be the next hop's quote on a buy). Check the order.
 - **RPC errors** — rate limits, missing `getPriorityFeeEstimate`, or send blocked; try another RPC; pass `--priority-micro-lamports` explicitly.
 
 ## End-to-end flow

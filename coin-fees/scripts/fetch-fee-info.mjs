@@ -11,7 +11,7 @@ import {
   canonicalPumpPoolPda,
   creatorVaultPda,
   feeSharingConfigPda,
-  isCreatorUsingSharingConfig,
+  hasCoinCreatorMigratedToSharingConfig,
 } from "@pump-fun/pump-sdk";
 import {
   OnlinePumpAmmSdk,
@@ -107,7 +107,7 @@ async function main() {
   let sharingConfigInfo = null;
 
   if (!isCashbackCoin) {
-    hasSharingConfig = isCreatorUsingSharingConfig({
+    hasSharingConfig = hasCoinCreatorMigratedToSharingConfig({
       mint,
       creator: effectiveCreator,
     });

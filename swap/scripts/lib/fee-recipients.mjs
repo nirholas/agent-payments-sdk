@@ -6,8 +6,9 @@ import { PublicKey } from "@solana/web3.js";
  * file mirrors it for the standalone .mjs scripts (which can't import
  * .ts at runtime). Keep both in sync.
  *
- * Source: pump-public-docs/docs/FEE_RECIPIENTS.md and the SDK constant
- * CURRENT_FEE_RECIPIENTS_FOR_BUYBACK in @pump-fun/pump-sdk 1.35.0.
+ * Source: pump-public-docs/docs/FEE_RECIPIENTS.md; equal to the live
+ * `Global.buybackFeeRecipients` list as of @pump-fun/pump-sdk 4.0.0. Prefer
+ * `pickGlobalBuybackFeeRecipient(global)`, which reads that live list.
  */
 const BUYBACK_FEE_RECIPIENTS = [
   "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",
@@ -39,11 +40,26 @@ export function pickFeeRecipient(global, mayhemMode) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Pick a buyback fee recipient at random from the v1.35 static list. */
+/** Pick a buyback fee recipient at random from the static list. */
 export function pickBuybackFeeRecipient() {
   return BUYBACK_FEE_RECIPIENTS[
     Math.floor(Math.random() * BUYBACK_FEE_RECIPIENTS.length)
   ];
+}
+
+/**
+ * Pick a buyback fee recipient at random from the live
+ * `Global.buybackFeeRecipients` list (the program checks the account
+ * against it), falling back to the static list when Global lists none.
+ *
+ * @param {{ buybackFeeRecipients?: import("@solana/web3.js").PublicKey[] }} global
+ */
+export function pickGlobalBuybackFeeRecipient(global) {
+  const listed = (global.buybackFeeRecipients ?? []).filter(
+    (k) => !k.equals(PublicKey.default),
+  );
+  if (listed.length === 0) return pickBuybackFeeRecipient();
+  return listed[Math.floor(Math.random() * listed.length)];
 }
 
 export { BUYBACK_FEE_RECIPIENTS };

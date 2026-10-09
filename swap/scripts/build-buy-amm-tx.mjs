@@ -9,6 +9,7 @@ import {
   OnlinePumpAmmSdk,
   PUMP_AMM_SDK,
   canonicalPumpPoolPda,
+  supportsTradeV2,
 } from "@pump-fun/pump-swap-sdk";
 import { PUMP_SDK, bondingCurvePda } from "@pump-fun/pump-sdk";
 import { getConnection } from "./lib/env.mjs";
@@ -38,6 +39,8 @@ Optional:
   --pool <PUBKEY>
   --mint <PUBKEY>
   --slippage <percent>  Default 5
+  --v2                  Build buy_v2 (17 accounts, fees booked in the pool's sweepable
+                        buckets) when the pool supports it; v1 buy otherwise.
   --compute-units <int> Default ${AMM_BUY_SELL_DEFAULT_UNITS}
   --priority-micro-lamports <int>
   --front-runner-protection   Add Jito tip; send ONLY to Jito endpoints
@@ -57,6 +60,7 @@ async function main() {
       pool: { type: "string" },
       mint: { type: "string" },
       slippage: { type: "string" },
+      v2: { type: "boolean", default: false },
       "compute-units": { type: "string" },
       "priority-micro-lamports": { type: "string" },
       "front-runner-protection": { type: "boolean", default: false },
@@ -124,6 +128,8 @@ async function main() {
 
   const onlineAmmSdk = new OnlinePumpAmmSdk(connection);
   const swapState = await onlineAmmSdk.swapSolanaState(poolKey, user);
+  const tradeOptions = { v2: Boolean(values.v2) };
+  const usedV2 = tradeOptions.v2 && supportsTradeV2(swapState.pool);
 
   let sdkInstructions;
   if (mode === "quote") {
@@ -131,12 +137,14 @@ async function main() {
       swapState,
       amountBn,
       slippage,
+      tradeOptions,
     );
   } else {
     sdkInstructions = await PUMP_AMM_SDK.buyBaseInput(
       swapState,
       amountBn,
       slippage,
+      tradeOptions,
     );
   }
 
@@ -156,6 +164,7 @@ async function main() {
     mode,
     amount: amountBn.toString(),
     slippagePercent: slippage,
+    instructionVersion: usedV2 ? "v2" : "v1",
     frontRunnerProtection,
   });
 }

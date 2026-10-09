@@ -10,12 +10,24 @@
  * `agent-payments` program. Both programs emit Anchor `emit_cpi!` events
  * but their IDLs are completely different.
  *
- * NOTE: BorshEventCoder returns field names in the snake_case form that
- * appears in the IDL (e.g. `is_buy`, `sol_amount`). Interfaces here mirror
- * that casing so TypeScript types match the runtime values exactly.
+ * Field names are the snake_case names in the IDL (e.g. `is_buy`,
+ * `sol_amount`), so the interfaces below match the runtime values exactly.
  *
- * IDL source: swap/node_modules/@pump-fun/pump-sdk/src/idl/pump.json
- * (the runtime IDL has more fields than pump-public-docs/idl/pump.json).
+ * IDL source: pump-public-docs/idl/pump.json (the October 2026 layout),
+ * vendored as ./idl/pump.json.
+ *
+ * Length tolerance: every program upgrade appends fields to existing events
+ * (the October 2026 upgrade added `holder_rewards_bps`, `holder_rewards` and
+ * `creator_fee_unclaimed` to `TradeEvent`, and `creator_fee_bps`,
+ * `is_holder_reward` and `depth` to `CreateEvent`). Anchor's
+ * `BorshEventCoder` decodes a whole struct at once and throws a RangeError on
+ * an event logged before a field existed, so historical transactions would
+ * fail to parse against the current IDL. This module decodes field by field
+ * instead: fields the bytes do not reach get a zero value (see
+ * `absentFieldValue`) and are listed in `ParsedPumpEvent.absentFields`, and
+ * bytes past the last known field (a future upgrade) are ignored. Events the
+ * program no longer emits but that exist in history are kept in
+ * `RETIRED_EVENTS` so old logs still decode.
  */
 
 import {
@@ -25,8 +37,8 @@ import {
   type Logs,
 } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { BorshEventCoder } from "@coral-xyz/anchor/dist/cjs/coder/borsh/event.js";
-import type { Idl } from "@coral-xyz/anchor";
+import { IdlCoder } from "@coral-xyz/anchor/dist/cjs/coder/borsh/idl.js";
+import type { IdlField, IdlType, IdlTypeDef } from "@coral-xyz/anchor/dist/cjs/idl.js";
 
 import IDL_JSON from "./idl/pump.json";
 
@@ -36,14 +48,41 @@ import IDL_JSON from "./idl/pump.json";
 export const PUMP_BONDING_CURVE_PROGRAM_ID = new PublicKey(IDL_JSON.address);
 
 // ─── Typed event data interfaces ─────────────────────────────────────────────
-// Field names and types are derived from the runtime IDL (pump.json).
-// Pubkey fields: PublicKey; u64/i64: BN; bool: boolean; string: string.
+// Field names and types are derived from the vendored IDL (./idl/pump.json).
+// Pubkey fields: PublicKey; u64/i64: BN; u8/u16: number; bool: boolean;
+// string: string. A field an older event predates decodes to its zero value
+// and is named in `ParsedPumpEvent.absentFields`.
 
 export interface Shareholder {
   address: PublicKey;
   share_bps: number;
 }
 
+export interface AddQuoteControlMintEventData {
+  quote_control: PublicKey;
+  authority: PublicKey;
+  quote_mint: PublicKey;
+  initial_virtual_quote_reserves: BN;
+  timestamp: BN;
+}
+
+export interface AdminCtoEventData {
+  timestamp: BN;
+  authority: PublicKey;
+  mint: PublicKey;
+  bonding_curve: PublicKey;
+  old_creator: PublicKey;
+  new_creator: PublicKey;
+  is_holder_reward: boolean;
+  is_cashback_coin: boolean;
+  old_creator_fee_bps: BN;
+  new_creator_fee_bps: BN;
+  sharing_config_reset: boolean;
+  swept_to_holder_vault: BN;
+  pool_updated: boolean;
+}
+
+/** Retired: the program no longer emits it (see `RETIRED_EVENTS`). */
 export interface AdminSetCreatorEventData {
   timestamp: BN;
   admin_set_creator_authority: PublicKey;
@@ -97,6 +136,7 @@ export interface CollectCreatorFeeEventData {
   timestamp: BN;
   creator: PublicKey;
   creator_fee: BN;
+  quote_mint: PublicKey;
 }
 
 export interface CompleteEventData {
@@ -116,6 +156,7 @@ export interface CompletePumpAmmMigrationEventData {
   bonding_curve: PublicKey;
   timestamp: BN;
   pool: PublicKey;
+  quote_mint: PublicKey;
 }
 
 export interface CreateEventData {
@@ -136,6 +177,11 @@ export interface CreateEventData {
   is_cashback_enabled: boolean;
   quote_mint: PublicKey;
   virtual_quote_reserves: BN;
+  /** Creator fee rate chosen at creation (configurable creator fees). */
+  creator_fee_bps: BN;
+  is_holder_reward: boolean;
+  /** Quote-chain depth: 0 for SOL / listed quotes, 1+ for a pump-coin quote. */
+  depth: number;
 }
 
 export interface DistributeCreatorFeesEventData {
@@ -146,6 +192,15 @@ export interface DistributeCreatorFeesEventData {
   admin: PublicKey;
   shareholders: Shareholder[];
   distributed: BN;
+  quote_mint: PublicKey;
+}
+
+export interface DistributeFeeToHoldersEventData {
+  timestamp: BN;
+  mint: PublicKey;
+  quote_mint: PublicKey;
+  recipients: BN;
+  total: BN;
 }
 
 export interface ExtendAccountEventData {
@@ -175,6 +230,37 @@ export interface MinimumDistributableFeeEventData {
   minimum_required: BN;
   distributable_fees: BN;
   can_distribute: boolean;
+}
+
+/**
+ * Emitted after `CompleteEvent` when a v3 buy runs past the curve's remaining
+ * supply: the rest of the buy is filled at the price of the pool the
+ * migration will create (synthetic migration).
+ */
+export interface PostCompleteBuyEventData {
+  user: PublicKey;
+  mint: PublicKey;
+  bonding_curve: PublicKey;
+  quote_mint: PublicKey;
+  timestamp: BN;
+  base_out: BN;
+  quote_in: BN;
+  fee_basis_points: BN;
+  fee: BN;
+  creator_fee_basis_points: BN;
+  creator_fee: BN;
+  buyback_fee: BN;
+  pool_base_reserves_before: BN;
+  pool_quote_reserves_before: BN;
+  pool_base_reserves_after: BN;
+  pool_quote_reserves_after: BN;
+}
+
+export interface RemoveQuoteControlMintEventData {
+  quote_control: PublicKey;
+  authority: PublicKey;
+  quote_mint: PublicKey;
+  timestamp: BN;
 }
 
 export interface ReservedFeeRecipientsEventData {
@@ -213,6 +299,49 @@ export interface SetParamsEventData {
   timestamp: BN;
   set_creator_authority: PublicKey;
   admin_set_creator_authority: PublicKey;
+}
+
+export interface SetQuoteControlAdminEventData {
+  quote_control: PublicKey;
+  authority: PublicKey;
+  old_admin: PublicKey;
+  new_admin: PublicKey;
+  timestamp: BN;
+}
+
+export interface SetQuoteControlMintReservesEventData {
+  quote_control: PublicKey;
+  authority: PublicKey;
+  quote_mint: PublicKey;
+  old_initial_virtual_quote_reserves: BN;
+  new_initial_virtual_quote_reserves: BN;
+  timestamp: BN;
+}
+
+export interface SetQuoteControlReservesAdminEventData {
+  quote_control: PublicKey;
+  authority: PublicKey;
+  old_reserves_admin: PublicKey;
+  new_reserves_admin: PublicKey;
+  timestamp: BN;
+}
+
+/** Fee bucket a `SweepBondingCurveFeeEvent` paid out. */
+export const SWEEP_BUCKET = { protocol: 0, creator: 1 } as const;
+
+/**
+ * `sweep_protocol_fee` / `sweep_creator_fee`: fees v3 trades left on the
+ * curve (`BondingCurve.protocol_fees` / `creator_fee`) paid to `recipient`.
+ * `bucket` is `SWEEP_BUCKET.protocol` or `SWEEP_BUCKET.creator`.
+ */
+export interface SweepBondingCurveFeeEventData {
+  timestamp: BN;
+  mint: PublicKey;
+  bonding_curve: PublicKey;
+  quote_mint: PublicKey;
+  recipient: PublicKey;
+  amount: BN;
+  bucket: number;
 }
 
 export interface SyncUserVolumeAccumulatorEventData {
@@ -255,6 +384,20 @@ export interface TradeEventData {
   quote_amount: BN;
   virtual_quote_reserves: BN;
   real_quote_reserves: BN;
+  holder_rewards_bps: BN;
+  holder_rewards: BN;
+  /**
+   * Creator fee this trade left on the curve for a later `sweep_creator_fee`
+   * (v3 trades). Zero on v1 / v2 trades, which pay the creator vault directly.
+   */
+  creator_fee_unclaimed: BN;
+}
+
+export interface UpdateCreatorFeeConfigEventData {
+  timestamp: BN;
+  authority: PublicKey;
+  creator_fee_configurable: boolean;
+  max_configurable_creator_fee_bps: BN;
 }
 
 export interface UpdateGlobalAuthorityEventData {
@@ -278,6 +421,8 @@ export interface UpdateMayhemVirtualParamsEventData {
 // ─── Discriminated map ───────────────────────────────────────────────────────
 
 export interface PumpEventDataMap {
+  AddQuoteControlMintEvent: AddQuoteControlMintEventData;
+  AdminCtoEvent: AdminCtoEventData;
   AdminSetCreatorEvent: AdminSetCreatorEventData;
   AdminSetIdlAuthorityEvent: AdminSetIdlAuthorityEventData;
   AdminUpdateTokenIncentivesEvent: AdminUpdateTokenIncentivesEventData;
@@ -289,16 +434,24 @@ export interface PumpEventDataMap {
   CompletePumpAmmMigrationEvent: CompletePumpAmmMigrationEventData;
   CreateEvent: CreateEventData;
   DistributeCreatorFeesEvent: DistributeCreatorFeesEventData;
+  DistributeFeeToHoldersEvent: DistributeFeeToHoldersEventData;
   ExtendAccountEvent: ExtendAccountEventData;
   InitUserVolumeAccumulatorEvent: InitUserVolumeAccumulatorEventData;
   MigrateBondingCurveCreatorEvent: MigrateBondingCurveCreatorEventData;
   MinimumDistributableFeeEvent: MinimumDistributableFeeEventData;
+  PostCompleteBuyEvent: PostCompleteBuyEventData;
+  RemoveQuoteControlMintEvent: RemoveQuoteControlMintEventData;
   ReservedFeeRecipientsEvent: ReservedFeeRecipientsEventData;
   SetCreatorEvent: SetCreatorEventData;
   SetMetaplexCreatorEvent: SetMetaplexCreatorEventData;
   SetParamsEvent: SetParamsEventData;
+  SetQuoteControlAdminEvent: SetQuoteControlAdminEventData;
+  SetQuoteControlMintReservesEvent: SetQuoteControlMintReservesEventData;
+  SetQuoteControlReservesAdminEvent: SetQuoteControlReservesAdminEventData;
+  SweepBondingCurveFeeEvent: SweepBondingCurveFeeEventData;
   SyncUserVolumeAccumulatorEvent: SyncUserVolumeAccumulatorEventData;
   TradeEvent: TradeEventData;
+  UpdateCreatorFeeConfigEvent: UpdateCreatorFeeConfigEventData;
   UpdateGlobalAuthorityEvent: UpdateGlobalAuthorityEventData;
   UpdateMayhemVirtualParamsEvent: UpdateMayhemVirtualParamsEventData;
 }
@@ -308,26 +461,207 @@ export type PumpEventName = keyof PumpEventDataMap;
 export interface ParsedPumpEvent<E extends PumpEventName = PumpEventName> {
   name: E;
   data: PumpEventDataMap[E];
+  /**
+   * Fields of the current layout this event's bytes did not reach because it
+   * was logged before an upgrade added them. They hold zero values in `data`.
+   * Empty for an event in the current layout.
+   */
+  absentFields: string[];
   signature?: string;
   slot?: number;
 }
 
+// ─── Event layouts ───────────────────────────────────────────────────────────
+
+interface EventTypeDef {
+  name: string;
+  discriminator: readonly number[];
+  typeDef: IdlTypeDef;
+}
+
+/**
+ * Events the program emitted in the past that the current IDL no longer
+ * lists. Historical transactions still carry them, so their layouts stay here
+ * (copied from the pump IDL before the October 2026 upgrade).
+ */
+export const RETIRED_EVENTS: ReadonlyArray<EventTypeDef> = [
+  {
+    name: "AdminSetCreatorEvent",
+    discriminator: [64, 69, 192, 104, 29, 30, 25, 107],
+    typeDef: {
+      name: "AdminSetCreatorEvent",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "timestamp", type: "i64" },
+          { name: "admin_set_creator_authority", type: "pubkey" },
+          { name: "mint", type: "pubkey" },
+          { name: "bonding_curve", type: "pubkey" },
+          { name: "old_creator", type: "pubkey" },
+          { name: "new_creator", type: "pubkey" },
+        ],
+      },
+    },
+  },
+];
+
+type FieldLayout = ReturnType<typeof IdlCoder.fieldLayout>;
+
+interface FieldDecoder {
+  name: string;
+  type: IdlType;
+  layout: FieldLayout;
+}
+
+interface EventDecoder {
+  name: PumpEventName;
+  discriminator: Buffer;
+  fields: FieldDecoder[];
+}
+
+const IDL_TYPES = IDL_JSON.types as unknown as IdlTypeDef[];
+
+function currentEventTypeDefs(): EventTypeDef[] {
+  return IDL_JSON.events.map((ev) => {
+    const typeDef = IDL_TYPES.find((t) => t.name === ev.name);
+    if (!typeDef) {
+      throw new Error(`pump-events: IDL event ${ev.name} has no type definition`);
+    }
+    return { name: ev.name, discriminator: ev.discriminator, typeDef };
+  });
+}
+
+function buildEventDecoder({ name, discriminator, typeDef }: EventTypeDef): EventDecoder {
+  const ty = typeDef.type;
+  if (ty.kind !== "struct" || !ty.fields || typeof ty.fields[0] === "string") {
+    throw new Error(`pump-events: event ${name} is not a struct with named fields`);
+  }
+  const fields = (ty.fields as IdlField[]).map((field) => ({
+    name: field.name,
+    type: field.type,
+    layout: IdlCoder.fieldLayout(field, IDL_TYPES),
+  }));
+  return {
+    name: name as PumpEventName,
+    discriminator: Buffer.from(discriminator),
+    fields,
+  };
+}
+
+const EVENT_DECODERS: EventDecoder[] = [
+  ...currentEventTypeDefs(),
+  ...RETIRED_EVENTS,
+].map(buildEventDecoder);
+
 // ─── Discriminator map ───────────────────────────────────────────────────────
 
-/** Maps each IDL event name to its 8-byte discriminator Buffer. */
+/**
+ * Maps each event name to its 8-byte discriminator Buffer: every event in
+ * the IDL plus `RETIRED_EVENTS`.
+ */
 export const eventDiscriminatorMap: Map<PumpEventName, Buffer> = new Map(
-  IDL_JSON.events.map((ev) => [
-    ev.name as PumpEventName,
-    Buffer.from(ev.discriminator),
-  ]),
+  EVENT_DECODERS.map((d) => [d.name, d.discriminator]),
 );
 
-// Invariant: every IDL event must be in the map — fires at module load.
-if (eventDiscriminatorMap.size !== IDL_JSON.events.length) {
+// Invariant: names and discriminators are unique. Fires at module load.
+if (
+  eventDiscriminatorMap.size !== EVENT_DECODERS.length ||
+  new Set(EVENT_DECODERS.map((d) => d.discriminator.toString("hex"))).size !==
+    EVENT_DECODERS.length
+) {
   throw new Error(
-    `pump-events: discriminator map size (${eventDiscriminatorMap.size}) ` +
-      `!= IDL events length (${IDL_JSON.events.length})`,
+    `pump-events: ${EVENT_DECODERS.length} event layouts but ` +
+      `${eventDiscriminatorMap.size} distinct names: duplicate event in the IDL or RETIRED_EVENTS`,
   );
+}
+
+// ─── Length-tolerant decoding ────────────────────────────────────────────────
+
+const ZERO_NUMBER_TYPES = new Set(["u8", "i8", "u16", "i16", "u32", "i32", "f32", "f64"]);
+const ZERO_BN_TYPES = new Set(["u64", "i64", "u128", "i128", "u256", "i256"]);
+
+/**
+ * The value an event field gets when the event was logged before the field
+ * existed: the type's zero (`0`, `BN(0)`, `false`, `PublicKey.default`, `""`,
+ * empty vec / bytes), `null` for options and user-defined types.
+ */
+export function absentFieldValue(type: IdlType): unknown {
+  if (typeof type === "string") {
+    if (type === "bool") return false;
+    if (ZERO_NUMBER_TYPES.has(type)) return 0;
+    if (ZERO_BN_TYPES.has(type)) return new BN(0);
+    if (type === "pubkey") return PublicKey.default;
+    if (type === "string") return "";
+    if (type === "bytes") return Buffer.alloc(0);
+    return null;
+  }
+  if ("vec" in type) return [];
+  if ("array" in type) {
+    const [inner, len] = type.array;
+    return typeof len === "number"
+      ? Array.from({ length: len }, () => absentFieldValue(inner))
+      : [];
+  }
+  return null;
+}
+
+export interface DecodedPumpEvent<E extends PumpEventName = PumpEventName> {
+  name: E;
+  data: PumpEventDataMap[E];
+  absentFields: string[];
+}
+
+/**
+ * Decode the fields of `body` (event bytes after the discriminator) in IDL
+ * order. Fields past the end of `body` get `absentFieldValue`; bytes past the
+ * last known field are ignored. Returns `null` when `body` ends inside a
+ * field, which no program version ever logs (the bytes are corrupt).
+ */
+function decodeFields(
+  decoder: EventDecoder,
+  body: Buffer,
+): { data: Record<string, unknown>; absentFields: string[] } | null {
+  const data: Record<string, unknown> = {};
+  const absentFields: string[] = [];
+  let offset = 0;
+  for (const field of decoder.fields) {
+    if (offset >= body.length) {
+      data[field.name] = absentFieldValue(field.type);
+      absentFields.push(field.name);
+      continue;
+    }
+    let span: number;
+    try {
+      span = field.layout.getSpan(body, offset);
+      if (offset + span > body.length) return null;
+      data[field.name] = field.layout.decode(body, offset);
+    } catch (err) {
+      if (err instanceof RangeError) return null;
+      throw err;
+    }
+    offset += span;
+  }
+  return { data, absentFields };
+}
+
+/**
+ * Decode one pump event from its raw bytes (8-byte discriminator followed by
+ * the Borsh body), whatever program version logged it. Returns `null` for an
+ * unknown discriminator or corrupt bytes.
+ */
+export function decodePumpEvent(bytes: Uint8Array): DecodedPumpEvent | null {
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (buf.length < 8) return null;
+  const disc = buf.subarray(0, 8);
+  const decoder = EVENT_DECODERS.find((d) => d.discriminator.equals(disc));
+  if (!decoder) return null;
+  const decoded = decodeFields(decoder, buf.subarray(8));
+  if (!decoded) return null;
+  return {
+    name: decoder.name,
+    data: decoded.data as unknown as PumpEventDataMap[PumpEventName],
+    absentFields: decoded.absentFields,
+  };
 }
 
 // ─── Parser ──────────────────────────────────────────────────────────────────
@@ -336,28 +670,23 @@ const PROGRAM_DATA_PREFIX = "Program data: ";
 
 export interface PumpEventParser {
   /**
-   * Decode transaction log messages into typed pump events.
-   * Lines not starting with `Program data: `, or with an unknown
-   * discriminator, are silently ignored.
+   * Decode transaction log messages into typed pump events. Lines not
+   * starting with `Program data: `, with an unknown discriminator, or with
+   * corrupt bytes are skipped. Events logged by any past program version
+   * decode (see the module comment on length tolerance).
    */
   parseLogs(logs: string[]): ParsedPumpEvent[];
 }
 
 export function createPumpEventParser(): PumpEventParser {
-  const coder = new BorshEventCoder(IDL_JSON as unknown as Idl);
-
   return {
     parseLogs(logs: string[]): ParsedPumpEvent[] {
       const out: ParsedPumpEvent[] = [];
       for (const line of logs) {
         if (!line.startsWith(PROGRAM_DATA_PREFIX)) continue;
-        const b64 = line.slice(PROGRAM_DATA_PREFIX.length);
-        const decoded = coder.decode(b64);
-        if (!decoded) continue;
-        out.push({
-          name: decoded.name as PumpEventName,
-          data: decoded.data as PumpEventDataMap[PumpEventName],
-        });
+        const bytes = Buffer.from(line.slice(PROGRAM_DATA_PREFIX.length), "base64");
+        const decoded = decodePumpEvent(bytes);
+        if (decoded) out.push(decoded);
       }
       return out;
     },
@@ -376,7 +705,7 @@ export interface SubscribePumpEventsOptions {
 }
 
 export interface PumpEventSubscription {
-  /** Stop listening. Idempotent — safe to call multiple times. */
+  /** Stop listening. Idempotent: safe to call multiple times. */
   unsubscribe: () => Promise<void>;
 }
 

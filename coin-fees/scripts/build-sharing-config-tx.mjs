@@ -9,6 +9,12 @@
  *
  * Auto-detects mode based on whether a sharing config already exists on-chain.
  * Use --mode create|update to force a specific mode.
+ *
+ * Both modes put the creator-fee sweeps first in the same transaction: fees
+ * that v3 curve trades left on the curve and pump-amm v2 trades left in the
+ * pool must reach the current creator's vault before the config changes, and
+ * the program refuses create/update while they are held (pump 6095
+ * CreatorFeesNotSwept, pump-amm 6081, pump-fees 6033 PoolCreatorFeesNotSwept).
  */
 import { parseArgs } from "node:util";
 import {
@@ -17,10 +23,11 @@ import {
   bondingCurvePda,
   canonicalPumpPoolPda,
   feeSharingConfigPda,
-  isCreatorUsingSharingConfig,
+  hasCoinCreatorMigratedToSharingConfig,
   isSharingConfigEditable,
 } from "@pump-fun/pump-sdk";
 import { OnlinePumpAmmSdk } from "@pump-fun/pump-swap-sdk";
+import { NATIVE_MINT } from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { getConnection } from "./lib/env.mjs";
 import {
@@ -31,7 +38,9 @@ import {
 } from "./lib/args.mjs";
 import { buildAndPartialSignTx, transactionToBase64 } from "./lib/tx-build.mjs";
 
-const DEFAULT_COMPUTE_UNITS = 200_000;
+// Sweeps + create + curve-creator migration + update + distribute measured
+// 197,703 CU on mainnet for an ungraduated coin; a pool sweep adds more.
+const DEFAULT_COMPUTE_UNITS = 400_000;
 
 const HELP = `Usage: node scripts/build-sharing-config-tx.mjs [options]
 
@@ -175,6 +184,7 @@ async function main() {
   const bondingCurve = await onlineSdk.fetchBondingCurve(mint);
 
   // Check pool (graduation status)
+  let pool = null;
   let poolCoinCreator = null;
   let isGraduated = false;
   const poolPda = canonicalPumpPoolPda(mint);
@@ -183,7 +193,7 @@ async function main() {
     isGraduated = true;
     try {
       const onlineAmmSdk = new OnlinePumpAmmSdk(connection);
-      const pool = await onlineAmmSdk.fetchPool(poolPda);
+      pool = await onlineAmmSdk.fetchPool(poolPda);
       poolCoinCreator = pool.coinCreator;
     } catch {
       // Pool not fully initialized
@@ -218,13 +228,13 @@ async function main() {
 
   if (isCashbackCoin) {
     throw new Error(
-      "This is a cashback coin — creator fees are returned to traders. " +
+      "This is a cashback coin: creator fees are returned to traders. " +
       "Fee sharing config cannot be created for cashback coins.",
     );
   }
 
   // Detect mode
-  const configExists = isCreatorUsingSharingConfig({ mint, creator: effectiveCreator });
+  const configExists = hasCoinCreatorMigratedToSharingConfig({ mint, creator: effectiveCreator });
   let mode = values.mode ?? (configExists ? "update" : "create");
 
   if (mode === "create" && configExists) {
@@ -238,7 +248,8 @@ async function main() {
     );
   }
 
-  const instructions = [];
+  const instructions = await creatorFeeSweepInstructions({ bondingCurve, pool, mint, user });
+  const sweepCount = instructions.length;
 
   if (mode === "create") {
     // Create sharing config — creator must sign
@@ -309,8 +320,40 @@ async function main() {
       percent: `${(s.shareBps / 100).toFixed(2)}%`,
     })),
     isGraduated,
+    sweepCount,
     frontRunnerProtection,
   });
+}
+
+/**
+ * Sweeps of the creator fees held on the curve and in the canonical pool,
+ * paid to the vault of the current creator (the wallet before a config
+ * exists, the sharing config after). The curve sweep is always included, as
+ * OnlinePumpSdk.buildDistributeCreatorFeesInstructions does: it is harmless
+ * when the bucket is empty and covers a v3 trade landing between build and
+ * send. The pool sweep needs the pool's own coin_creator, so it is added only
+ * for a graduated coin with held fees.
+ */
+async function creatorFeeSweepInstructions({ bondingCurve, pool, mint, user }) {
+  const sweeps = [
+    await PUMP_SDK.sweepCreatorFeeInstruction({
+      payer: user,
+      mint,
+      creator: bondingCurve.creator,
+      quoteMint: bondingCurve.quoteMint,
+    }),
+  ];
+  if (pool != null && pool.creatorFees.gtn(0)) {
+    sweeps.push(
+      await PUMP_SDK.sweepPoolCreatorFeeInstruction({
+        payer: user,
+        mint,
+        coinCreator: pool.coinCreator,
+        quoteMint: NATIVE_MINT,
+      }),
+    );
+  }
+  return sweeps;
 }
 
 main().catch((e) => {

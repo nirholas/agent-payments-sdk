@@ -12,11 +12,12 @@
     "fetch-fee-info": "node scripts/fetch-fee-info.mjs",
     "build-collect-fee-tx": "node scripts/build-collect-fee-tx.mjs",
     "build-distribute-fees-tx": "node scripts/build-distribute-fees-tx.mjs",
+    "build-sharing-config-tx": "node scripts/build-sharing-config-tx.mjs",
     "fetch-distributable-info": "node scripts/fetch-distributable-info.mjs"
   },
   "dependencies": {
-    "@pump-fun/pump-sdk": "^2.0.0",
-    "@pump-fun/pump-swap-sdk": "^1.20.0",
+    "@pump-fun/pump-sdk": "^4.0.0",
+    "@pump-fun/pump-swap-sdk": "^2.1.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "bn.js": "^5.2.2"

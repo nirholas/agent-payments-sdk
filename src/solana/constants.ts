@@ -5,9 +5,10 @@
 import { PublicKey } from "@solana/web3.js";
 
 /**
- * Static buyback fee recipients pool. Mirrors
- * `CURRENT_FEE_RECIPIENTS_FOR_BUYBACK` in @pump-fun/pump-sdk 1.35.0
- * (the constant is embedded but not exported by the SDK).
+ * Static buyback fee recipients pool, used by the v2 trade builders. Mirrors
+ * the list embedded in @pump-fun/pump-sdk (unchanged through 4.0.0). The
+ * live list is `Global.buybackFeeRecipients`, which the v3 builders in
+ * `PumpTradeClient` read instead.
  *
  * Source: pump-public-docs/docs/FEE_RECIPIENTS.md.
  */
@@ -22,7 +23,7 @@ export const BUYBACK_FEE_RECIPIENTS: ReadonlyArray<PublicKey> = [
   "A7hAgCzFw14fejgCp387JUJRMNyz4j89JKnhtKU8piqW",
 ].map((s) => new PublicKey(s));
 
-/** Pick a random buyback fee recipient from the static v1.35 list. */
+/** Pick a random buyback fee recipient from the static list. */
 export function pickBuybackFeeRecipient(): PublicKey {
   return BUYBACK_FEE_RECIPIENTS[
     Math.floor(Math.random() * BUYBACK_FEE_RECIPIENTS.length)

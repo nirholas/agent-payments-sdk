@@ -58,7 +58,7 @@ Builds a create + initial buy transaction. The server generates a mint keypair a
 
 Only `user`, `name`, `symbol`, `uri`, and `solLamports` are required. All other fields are optional with sensible defaults.
 
-> **Cashback launches are retired.** pump.fun no longer lets anyone create a new cashback coin: a create with cashback enabled fails on-chain with error 6082 `CashbackDeprecated` ("Cashback coins can no longer be created"), and `@pump-fun/pump-sdk` 2.x throws `CashbackDeprecatedError` before a transaction is even built. Never send `"cashback": true`. Coins that already launched with cashback keep trading and their traders can still claim (see the swap and coin-fees skills). To share creator fees with holders on a new coin, launch it as a **holder-reward** coin instead (`--holder-reward` in the script below).
+> **Cashback launches are retired.** pump.fun no longer lets anyone create a new cashback coin: a create with cashback enabled fails on-chain with error 6082 `CashbackDeprecated` ("Cashback coins can no longer be created"), and `@pump-fun/pump-sdk` 2.x and later throw `CashbackDeprecatedError` before a transaction is even built. Never send `"cashback": true`. Coins that already launched with cashback keep trading and their traders can still claim (see the swap and coin-fees skills). To share creator fees with holders on a new coin, launch it as a **holder-reward** coin instead (`--holder-reward` in the script below).
 
 > **`tipAmount`** is a Jito tip in **SOL** (e.g. `0.0001` for 100,000 lamports). Only relevant when `frontRunningProtection` is `true`.
 
@@ -177,7 +177,7 @@ Full transaction building (compute budget, blockhash, partial sign) is implement
 | `holderReward` | `boolean` | Route creator fees to token holders (the holder-rewards PDA becomes the on-chain creator); `--holder-reward`, default `false`. Throws `HolderRewardDisabledError` while the protocol has it switched off |
 | `creatorFeeBps` | `BN`     | Configurable creator fee, `1..global.maxConfigurableCreatorFeeBps`; `--creator-fee-bps`, omitted by default. Pass the same value to `getBuyTokenAmountFromSolAmount` so the initial buy covers the real fee |
 
-`cashback` is deprecated in `@pump-fun/pump-sdk` 2.x: passing `true` throws `CashbackDeprecatedError` (on-chain error 6082). The script still recognises `--cashback`, but only to exit with an explanation pointing at `--holder-reward`.
+`cashback` is deprecated in `@pump-fun/pump-sdk` 2.x and later: passing `true` throws `CashbackDeprecatedError` (on-chain error 6082). The script still recognises `--cashback`, but only to exit with an explanation pointing at `--holder-reward`.
 
 When `--tokenized-agent` is enabled, an additional `PumpAgentOffline.load(mint).create(...)` instruction (from `@pump-fun/agent-payments-sdk`) is appended after the create+buy instructions. The `--buyback-bps` flag controls the agent buyback percentage in basis points (default: 5000 = 50%). Tokenized agent coins **must** have an initial buy > 0 SOL.
 

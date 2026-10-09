@@ -4,30 +4,21 @@
  * (The API auto-detects sharing config vs direct collect.)
  *
  * Build a transaction to distribute creator fees when a sharing config exists.
- * If graduated: transferCreatorFeesToPump + distributeCreatorFees.
- * If not graduated: distributeCreatorFees only.
+ * Uses OnlinePumpSdk.buildDistributeCreatorFeesInstructions, which emits, in
+ * order: the creator-fee sweeps (fees v3 curve trades left on the curve and
+ * pump-amm v2 trades left in the pool; distribution fails with 6095
+ * CreatorFeesNotSwept while the curve bucket is nonzero), the AMM vault
+ * consolidation when graduated, then the distribution itself.
  */
 import { parseArgs } from "node:util";
 import {
-  PUMP_SDK,
   OnlinePumpSdk,
-  bondingCurvePda,
+  PUMP_SDK,
   canonicalPumpPoolPda,
   feeSharingConfigPda,
-  isCreatorUsingSharingConfig,
-  getPumpAmmProgram,
+  hasCoinCreatorMigratedToSharingConfig,
 } from "@pump-fun/pump-sdk";
-import {
-  OnlinePumpAmmSdk,
-  coinCreatorVaultAuthorityPda,
-  coinCreatorVaultAtaPda,
-} from "@pump-fun/pump-swap-sdk";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  createAssociatedTokenAccountIdempotentInstruction,
-  NATIVE_MINT,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+import { OnlinePumpAmmSdk } from "@pump-fun/pump-swap-sdk";
 import { PublicKey } from "@solana/web3.js";
 import { getConnection } from "./lib/env.mjs";
 import {
@@ -38,7 +29,8 @@ import {
 } from "./lib/args.mjs";
 import { buildAndPartialSignTx, transactionToBase64 } from "./lib/tx-build.mjs";
 
-const DISTRIBUTE_FEE_DEFAULT_UNITS = 200_000;
+// Up to two sweeps, the AMM consolidation and a ten-shareholder distribution.
+const DISTRIBUTE_FEE_DEFAULT_UNITS = 300_000;
 
 const HELP = `Usage: node scripts/build-distribute-fees-tx.mjs [options]
 
@@ -95,29 +87,11 @@ async function main() {
   const connection = getConnection();
   const onlineSdk = new OnlinePumpSdk(connection);
 
-  // Fetch bonding curve to get creator
   const bondingCurve = await onlineSdk.fetchBondingCurve(mint);
-
-  // Check pool (graduation status)
-  let poolCoinCreator = null;
-  let isGraduated = false;
-  const poolPda = canonicalPumpPoolPda(mint);
-  const poolAccountInfo = await connection.getAccountInfo(poolPda);
-  if (poolAccountInfo) {
-    isGraduated = true;
-    try {
-      const onlineAmmSdk = new OnlinePumpAmmSdk(connection);
-      const pool = await onlineAmmSdk.fetchPool(poolPda);
-      poolCoinCreator = pool.coinCreator;
-    } catch {
-      // Pool not fully initialized
-    }
-  }
-
+  const poolCoinCreator = await fetchPoolCoinCreator(connection, mint);
   const effectiveCreator = poolCoinCreator ?? new PublicKey(bondingCurve.creator);
 
-  // Verify sharing config exists
-  if (!isCreatorUsingSharingConfig({ mint, creator: effectiveCreator })) {
+  if (!hasCoinCreatorMigratedToSharingConfig({ mint, creator: effectiveCreator })) {
     throw new Error(
       "This coin does not use a fee sharing config. Use build-collect-fee-tx.mjs instead.",
     );
@@ -128,52 +102,13 @@ async function main() {
   if (!sharingConfigAccountInfo) {
     throw new Error("Sharing config account not found on-chain.");
   }
-
   const sharingConfig = PUMP_SDK.decodeSharingConfig(sharingConfigAccountInfo);
 
-  // Build instructions
-  const instructions = [];
-
-  if (isGraduated) {
-    const pumpAmmProgram = getPumpAmmProgram(connection);
-
-    const coinCreatorVaultAuthority = coinCreatorVaultAuthorityPda(sharingConfigAddress);
-    const coinCreatorVaultAta = coinCreatorVaultAtaPda(
-      coinCreatorVaultAuthority,
-      NATIVE_MINT,
-      TOKEN_PROGRAM_ID,
-    );
-
-    // Create WSOL ATA for sharing config authority if it doesn't exist
-    const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
-      user,
-      coinCreatorVaultAta,
-      coinCreatorVaultAuthority,
-      NATIVE_MINT,
-      TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-    );
-    instructions.push(createAtaIx);
-
-    // Transfer AMM fees to pump creator vault
-    const transferIx = await pumpAmmProgram.methods
-      .transferCreatorFeesToPump()
-      .accountsPartial({
-        wsolMint: NATIVE_MINT,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        coinCreator: sharingConfigAddress,
-      })
-      .instruction();
-    instructions.push(transferIx);
-  }
-
-  // Distribute creator fees to shareholders
-  const distributeIx = await PUMP_SDK.distributeCreatorFees({
-    mint,
-    sharingConfig,
-    sharingConfigAddress,
-  });
-  instructions.push(distributeIx);
+  const { instructions, isGraduated, sweepCount } =
+    await onlineSdk.buildDistributeCreatorFeesInstructions(mint, {
+      quoteMint: bondingCurve.quoteMint,
+      payer: user,
+    });
 
   const tx = await buildAndPartialSignTx({
     connection,
@@ -190,8 +125,21 @@ async function main() {
     sharingConfigAddress: sharingConfigAddress.toBase58(),
     shareholderCount: sharingConfig.shareholders.length,
     isGraduated,
+    sweepCount,
     frontRunnerProtection,
   });
+}
+
+/** The canonical pool's coin creator, or null before graduation. */
+async function fetchPoolCoinCreator(connection, mint) {
+  const poolPda = canonicalPumpPoolPda(mint);
+  if (!(await connection.getAccountInfo(poolPda))) return null;
+  try {
+    const pool = await new OnlinePumpAmmSdk(connection).fetchPool(poolPda);
+    return pool.coinCreator;
+  } catch {
+    return null;
+  }
 }
 
 main().catch((e) => {

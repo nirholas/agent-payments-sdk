@@ -64,8 +64,9 @@ export {
   decodeTokenAgentPayments,
 } from "./decoders";
 
-// Bonding curve decoder (v1 + v2)
+// Bonding curve decoder (v1 + v2, length tolerant)
 export {
+  BONDING_CURVE_ACCOUNT_SIZE,
   decodeBondingCurve,
   isV2BondingCurve,
   isUsdcQuoted,
@@ -156,7 +157,7 @@ export * as pumpEvents from "./pump-events.js";
 // `isTokenizedAgent: true` flag (which targets the legacy program).
 export * as legacyAgentPayments from "./legacy-agent-payments/index.js";
 
-// v2 bonding-curve trade client
+// Bonding-curve trade client (v2 + v3), multi-hop swaps and fee sweeps
 export { PumpTradeClient } from "./PumpTradeClient.js";
 
 // Real-time price & market cap for pump.fun coins
@@ -168,10 +169,16 @@ export type {
   ExactQuoteResult,
   BuyQuote,
   SellQuote,
+  BuyV3Result,
+  SellV3Result,
+  MultiHopRouteHop,
+  MultiHopSwapResult,
+  SweepCurveFeesResult,
 } from "./types.js";
 export {
   CoinGraduatedError,
   CoinNotFoundError,
+  FeeConfigNotFoundError,
   InsufficientLiquidityError,
   UnsupportedQuoteMintError,
 } from "./PumpTradeClient.js";

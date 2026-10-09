@@ -151,19 +151,19 @@ Each skill folder contains a `SKILL.md` plus a `scripts/` directory of runnable 
 
 | Skill | Purpose |
 |---|---|
-| [swap/SKILL.md](swap/SKILL.md) | Buy/sell on the bonding curve and AMM (legacy + v2 paths), balance prints. |
+| [swap/SKILL.md](swap/SKILL.md) | Buy/sell on the bonding curve (legacy, v2 and v3 paths) and AMM (v1 and v2), multi-hop swaps across curves and pools, balance prints. |
 | [create-coin/SKILL.md](create-coin/SKILL.md) | Create coins with optional initial buy, holder rewards, configurable creator fee, mayhem mode, and tokenized-agent registration. |
-| [coin-fees/SKILL.md](coin-fees/SKILL.md) | Inspect, collect, and distribute creator fees; manage sharing configs. |
+| [coin-fees/SKILL.md](coin-fees/SKILL.md) | Inspect, collect, and distribute creator fees (sweeping held v3 / AMM v2 fees first); manage sharing configs. |
 | [tokenized-agents/SKILL.md](tokenized-agents/SKILL.md) | Build and verify agent invoice payments using this SDK. |
 
 ## vendor/
 
-The [vendor/](vendor/) tree contains reference copies of upstream dependencies. None of them ship in the published `dist/` or are wired into the build. The cross-version tests diff this SDK against the published 1.0.7 build, installed as the `@pump-fun/agent-payments-sdk-legacy` npm alias devDependency (`npm:@pump-fun/agent-payments-sdk@1.0.7`) so the pin cannot collide with the copy `@pump-fun/pump-sdk` 2.x pulls in transitively.
+The [vendor/](vendor/) tree contains reference copies of upstream dependencies. None of them ship in the published `dist/` or are wired into the build. The cross-version tests diff this SDK against the published 1.0.7 build, installed as the `@pump-fun/agent-payments-sdk-legacy` npm alias devDependency (`npm:@pump-fun/agent-payments-sdk@1.0.7`) so the pin cannot collide with the copy `@pump-fun/pump-sdk` 4.x pulls in transitively.
 
 | Path | What it is |
 |---|---|
 | [vendor/pump-rust-client/](vendor/pump-rust-client/) | Rust client crate for the pump program; canonical reference for v2 instruction wiring. |
-| [vendor/pump-sdk-npm/](vendor/pump-sdk-npm/) | Decompiled `@pump-fun/pump-sdk` source (1.35.x), kept as a historical reference. The runtime dependency is `@pump-fun/pump-sdk` ^2.0.0. |
+| [vendor/pump-sdk-npm/](vendor/pump-sdk-npm/) | Decompiled `@pump-fun/pump-sdk` source (1.35.x), kept as a historical reference. The runtime dependency is `@pump-fun/pump-sdk` ^4.0.0. |
 | [vendor/pump-swap-sdk-npm/](vendor/pump-swap-sdk-npm/) | Decompiled `@pump-fun/pump-swap-sdk` for AMM helpers. |
 | [vendor/agent-payments-sdk-npm/](vendor/agent-payments-sdk-npm/) | The 1.0.7 npm bundle the legacy module was reconstructed from. |
 | [vendor/agent-payments-sdk-107/](vendor/agent-payments-sdk-107/) | Unpacked copy of the same 1.0.7 build, kept for reading; the tests use the npm alias above. |

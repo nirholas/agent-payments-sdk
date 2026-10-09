@@ -218,6 +218,72 @@ export interface ExactQuoteResult {
   quoteTokenProgram: PublicKey;
 }
 
+/** Result of `buildBuyV3Instructions` / `buildBuyExactQuoteInV3Instructions`. */
+export interface BuyV3Result {
+  instructions: TransactionInstruction[];
+  quoteMint: PublicKey;
+  quoteTokenProgram: PublicKey;
+  /** Base tokens the buy is quoted to receive, before slippage. */
+  expectedBaseTokens: BN;
+  /**
+   * Quote the buy is quoted to cost, fees included. For the exact-quote-in
+   * variant this is the spend cap the caller passed.
+   */
+  preciseQuoteAmount: BN;
+  /** `Global.buybackFeeRecipients` wallet paid the buyback slice. */
+  buybackFeeRecipient: PublicKey;
+  /**
+   * True when the buy takes more than the curve's remaining supply: it
+   * completes the curve and buys the rest at the future pool's price
+   * (synthetic migration). No curve trade runs after it until migration.
+   */
+  completesCurve: boolean;
+}
+
+/** Result of `buildSellV3Instructions`. */
+export interface SellV3Result extends SellResult {
+  /** `Global.buybackFeeRecipients` wallet paid the buyback slice. */
+  buybackFeeRecipient: PublicKey;
+}
+
+/** One hop of a multi-hop route, as returned by `@pump-fun/pump-sdk`. */
+export interface MultiHopRouteHop {
+  venue: "pool" | "curve";
+  baseMint: PublicKey;
+  quoteMint: PublicKey;
+  baseTokenProgram: PublicKey;
+  quoteTokenProgram: PublicKey;
+}
+
+/** Result of `buildMultiHopSwapInstructions`. */
+export interface MultiHopSwapResult {
+  instructions: TransactionInstruction[];
+  hops: MultiHopRouteHop[];
+  side: "buy" | "sell";
+  /** Mint the user spends (WSOL for SOL). */
+  inputMint: PublicKey;
+  /** Mint the user receives (WSOL for SOL, unwrapped by the instructions). */
+  outputMint: PublicKey;
+  /** Amount out from simulating the route at current state. */
+  expectedAmountOut: BN;
+  /** `expectedAmountOut` less slippage: the on-chain floor. */
+  minAmountOut: BN;
+}
+
+/** Result of `buildSweepCurveFeesInstructions`. */
+export interface SweepCurveFeesResult {
+  /** `sweep_protocol_fee` and/or `sweep_creator_fee`, only for nonzero buckets. */
+  instructions: TransactionInstruction[];
+  quoteMint: PublicKey;
+  quoteTokenProgram: PublicKey;
+  /** Protocol fees left on the curve by v3 trades (quote units). */
+  protocolFees: BN;
+  /** Creator fees left on the curve by v3 trades (quote units). */
+  creatorFee: BN;
+  /** Where the creator sweep pays: the creator vault of `bondingCurve.creator`. */
+  creator: PublicKey;
+}
+
 /** Preview of a buy without sending. */
 export interface BuyQuote {
   quoteMint: PublicKey;
