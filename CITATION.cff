@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: "agent-payments-sdk"
+abstract: "TypeScript SDK for Pump Agent Payments. Owned by [@pump-fun](https://github.com/pump-fun), published as a restricted (private) npm package."
+repository-code: "https://github.com/nirholas/agent-payments-sdk"
+url: "https://three.ws"
+authors:
+  - name: three.ws
+    website: "https://three.ws"

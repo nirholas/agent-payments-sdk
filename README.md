@@ -1,5 +1,10 @@
 # @nirholas/agent-payments-sdk
 
+<!-- three.ws:badges -->
+[![GitHub stars](https://img.shields.io/github/stars/nirholas/agent-payments-sdk?style=flat&logo=github)](https://github.com/nirholas/agent-payments-sdk/stargazers) [![Last commit](https://img.shields.io/github/last-commit/nirholas/agent-payments-sdk?style=flat)](https://github.com/nirholas/agent-payments-sdk/commits) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat)](https://github.com/nirholas/agent-payments-sdk/pulls) [![AI agent friendly](https://img.shields.io/badge/AI%20agents-AGENTS.md%20%2B%20llms.txt-6d5dfc?style=flat)](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/AGENTS.md)
+<!-- /three.ws:badges -->
+
+
 ## Overview
 
 Cross-chain payments SDK for Pump tokenized agents. The Solana surface ships two coexisting clients — the modern 3.0.x `pump_agent_payments` program ([src/solana/](src/solana/)) and a vendored 1.0.7 client for coins registered via `@pump-fun/pump-sdk`'s `isTokenizedAgent: true` path ([src/solana/legacy-agent-payments/](src/solana/legacy-agent-payments/)). The EVM surface covers payment acceptance and cross-chain quoting on six EVM chains plus an x402 HTTP 402 client/facilitator. Embedded agent skills under [swap/](swap/), [create-coin/](create-coin/), [coin-fees/](coin-fees/), and [tokenized-agents/](tokenized-agents/) ship runnable Node scripts that the parent agent can drive directly.
@@ -203,3 +208,26 @@ Full documentation site: **https://nirholas.github.io/agent-payments-sdk/**
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=nirholas/agent-payments-sdk&type=Date)](https://www.star-history.com/#nirholas/agent-payments-sdk&Date)
+
+<!-- three.ws:growth -->
+## Support the project
+
+If agent-payments-sdk saves you time, **[star it on GitHub](https://github.com/nirholas/agent-payments-sdk)**. Stars are how other developers and AI agents find the repositories worth trusting, and they cost you one click.
+
+Know someone who would use it? [Post on X](https://twitter.com/intent/tweet?text=agent-payments-sdk%3A%20TypeScript%20SDK%20for%20Pump%20Agent%20Payments&url=https%3A%2F%2Fgithub.com%2Fnirholas%2Fagent-payments-sdk) · [Share on Bluesky](https://bsky.app/intent/compose?text=agent-payments-sdk%3A%20TypeScript%20SDK%20for%20Pump%20Agent%20Payments%20https%3A%2F%2Fgithub.com%2Fnirholas%2Fagent-payments-sdk) · [Share on LinkedIn](https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fgithub.com%2Fnirholas%2Fagent-payments-sdk) · [Submit to Hacker News](https://news.ycombinator.com/submitlink?u=https%3A%2F%2Fgithub.com%2Fnirholas%2Fagent-payments-sdk&t=agent-payments-sdk%3A%20TypeScript%20SDK%20for%20Pump%20Agent%20Payments) · [Share on Reddit](https://www.reddit.com/submit?url=https%3A%2F%2Fgithub.com%2Fnirholas%2Fagent-payments-sdk&title=agent-payments-sdk%3A%20TypeScript%20SDK%20for%20Pump%20Agent%20Payments)
+
+## Built for AI agents too
+
+Coding agents and LLM tooling can read this repo directly: [AGENTS.md](./AGENTS.md), [llms.txt](./llms.txt), [llms-full.txt](./llms-full.txt). Point an agent at `https://github.com/nirholas/agent-payments-sdk` and it has the context it needs.
+
+## More from the same author
+
+- [All repositories by nirholas](https://github.com/nirholas/nirholas#readme): the full catalog, grouped by topic
+- [three.ws](https://three.ws): the platform for 3D AI agents with Solana wallets, a skill marketplace and x402 payments
+- Questions or ideas: [open an issue](https://github.com/nirholas/agent-payments-sdk/issues) or [start a discussion](https://github.com/nirholas/agent-payments-sdk/discussions)
+
+## Contributors
+
+[![Contributors](https://contrib.rocks/image?repo=nirholas/agent-payments-sdk)](https://github.com/nirholas/agent-payments-sdk/graphs/contributors)
+
+<!-- /three.ws:growth -->

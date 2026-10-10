@@ -1,0 +1,28 @@
+# agent-payments-sdk
+
+> TypeScript SDK for Pump Agent Payments. Owned by [@pump-fun](https://github.com/pump-fun), published as a restricted (private) npm package.
+
+agent-payments-sdk is an open-source repository by nirholas, part of the three.ws ecosystem.
+
+## Docs
+
+- [README](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md): install, usage and reference
+- [Overview](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#overview)
+- [Install](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#install)
+- [Quickstart: Solana modern (3.0.x)](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#quickstart-solana-modern-30x)
+- [Quickstart: Solana legacy (1.0.7)](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#quickstart-solana-legacy-107)
+- [Quickstart: EVM](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#quickstart-evm)
+- [Public exports map](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#public-exports-map)
+- [Skills](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#skills)
+- [vendor/](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/README.md#vendor)
+- [AGENTS.md](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/AGENTS.md): guidance for coding agents
+- [Full text for LLMs](https://github.com/nirholas/agent-payments-sdk/blob/HEAD/llms-full.txt): the README inlined
+
+## Project
+
+- [Source](https://github.com/nirholas/agent-payments-sdk)
+- [Issues](https://github.com/nirholas/agent-payments-sdk/issues)
+- [Discussions](https://github.com/nirholas/agent-payments-sdk/discussions)
+- [Homepage](https://nirholas.github.io/agent-payments-sdk/)
+- [three.ws](https://three.ws): the platform this is part of
+- [All repositories by nirholas](https://github.com/nirholas/nirholas#readme)
