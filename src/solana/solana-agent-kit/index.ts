@@ -185,5 +185,10 @@ export {
   getConfigAction,
   getPaymentStatsAction,
   updateBuybackBpsAction,
+  pumpBuyAction,
+  pumpSellAction,
+  pumpBuyExactQuoteInAction,
+  pumpClaimCashbackAction,
+  pumpCheckUsdcWhitelistAction,
   allActions,
 } from "./actions";

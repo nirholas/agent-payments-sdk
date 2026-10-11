@@ -8,10 +8,15 @@ import {
   type TransactionInstruction,
 } from "@solana/web3.js";
 import { NATIVE_MINT, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { BN } from "@coral-xyz/anchor";
 
 import { PumpAgent } from "../PumpAgent";
 import { PumpAgentOffline } from "../PumpAgentOffline";
+import { PumpTradeClient } from "../PumpTradeClient.js";
+import { WhitelistMonitor } from "../WhitelistMonitor.js";
 import type { Action, SolanaAgentKitLike } from "./types";
+
+const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -525,6 +530,202 @@ export const updateBuybackBpsAction: Action = {
   },
 };
 
+export const pumpBuyAction: Action = {
+  name: "pump_buy",
+  similes: [
+    "buy pump tokens",
+    "buy from bonding curve",
+    "buy pump coin",
+    "buy usdc-paired pump coin",
+  ],
+  description:
+    "Build the instructions to buy a pump.fun coin from its bonding curve. Works for " +
+    "SOL-paired and USDC-paired coins: the quote mint is read from the curve. " +
+    "quoteAmount is in lamports for SOL or USDC base units (1e6) for USDC. Returns " +
+    "serialized instructions for the wallet to sign; does NOT auto-submit.",
+  examples: [
+    [
+      {
+        input: { mint: "<coin mint>", quoteAmount: "1000000", slippagePct: "5" },
+        output: {
+          instructions: "[...serialized instructions]",
+          quoteMint: "So11111111111111111111111111111111111111112",
+          expectedBaseTokens: "1234567",
+        },
+        explanation: "Buy with 0.001 SOL on a SOL-paired coin.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string().describe("Mint of the coin to buy"),
+    quoteAmount: z
+      .string()
+      .describe("Amount of the quote currency to spend, in its smallest unit"),
+    slippagePct: z.number().default(5).describe("Max slippage percent"),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection);
+    const { instructions, quoteMint, expectedBaseTokens } =
+      await client.buildBuyInstructions({
+        mint: pk(input.mint),
+        user: kit.wallet_address,
+        quoteAmount: new BN(input.quoteAmount),
+        slippagePct: input.slippagePct,
+      });
+    return {
+      instructions: instructions.map(serializeIx),
+      quoteMint: quoteMint.toBase58(),
+      expectedBaseTokens: expectedBaseTokens.toString(),
+    };
+  },
+};
+
+export const pumpSellAction: Action = {
+  name: "pump_sell",
+  similes: ["sell pump tokens", "sell to bonding curve", "sell pump coin"],
+  description:
+    "Build the instructions to sell a pump.fun coin back to its bonding curve. Works for " +
+    "SOL-paired and USDC-paired coins. baseAmount is in token base units. Returns " +
+    "serialized instructions for the wallet to sign; does NOT auto-submit.",
+  examples: [
+    [
+      {
+        input: { mint: "<coin mint>", baseAmount: "1000000", slippagePct: "5" },
+        output: {
+          instructions: "[...serialized instructions]",
+          quoteMint: "So11111111111111111111111111111111111111112",
+          expectedQuoteOut: "987654",
+        },
+        explanation: "Sell 1M token base units back to the curve.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string().describe("Mint of the coin to sell"),
+    baseAmount: z.string().describe("Token amount to sell, in base units"),
+    slippagePct: z.number().default(5).describe("Max slippage percent"),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection);
+    const { instructions, quoteMint, expectedQuoteOut } =
+      await client.buildSellInstructions({
+        mint: pk(input.mint),
+        user: kit.wallet_address,
+        baseAmount: new BN(input.baseAmount),
+        slippagePct: input.slippagePct,
+      });
+    return {
+      instructions: instructions.map(serializeIx),
+      quoteMint: quoteMint.toBase58(),
+      expectedQuoteOut: expectedQuoteOut.toString(),
+    };
+  },
+};
+
+export const pumpBuyExactQuoteInAction: Action = {
+  name: "pump_buy_exact_quote_in",
+  similes: ["buy exact quote amount", "spend exact amount on pump coin"],
+  description:
+    "Build the instructions to spend an exact amount of the quote currency on a " +
+    "pump.fun coin, receiving at least minBaseOut tokens. Returns serialized " +
+    "instructions for the wallet to sign; does NOT auto-submit.",
+  examples: [
+    [
+      {
+        input: { mint: "<coin mint>", spendableQuoteIn: "1000000", minBaseOut: "100" },
+        output: {
+          instructions: "[...serialized instructions]",
+          quoteMint: "So11111111111111111111111111111111111111112",
+        },
+        explanation: "Spend 0.001 SOL for at least 100 token base units.",
+      },
+    ],
+  ],
+  schema: z.object({
+    mint: z.string().describe("Mint of the coin to buy"),
+    spendableQuoteIn: z
+      .string()
+      .describe("Exact quote amount to spend, in its smallest unit"),
+    minBaseOut: z.string().describe("Minimum token base units to receive"),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection);
+    const { instructions, quoteMint } =
+      await client.buildBuyExactQuoteInInstructions({
+        mint: pk(input.mint),
+        user: kit.wallet_address,
+        spendableQuoteIn: new BN(input.spendableQuoteIn),
+        minBaseOut: new BN(input.minBaseOut),
+      });
+    return {
+      instructions: instructions.map(serializeIx),
+      quoteMint: quoteMint.toBase58(),
+    };
+  },
+};
+
+export const pumpClaimCashbackAction: Action = {
+  name: "pump_claim_cashback",
+  similes: ["claim pump cashback", "collect cashback", "claim trading rewards"],
+  description:
+    "Build the instructions to claim accrued pump.fun cashback. With no quoteMint, every " +
+    "claimable quote mint is discovered on-chain. Returns serialized instructions for the " +
+    "wallet to sign; does NOT auto-submit.",
+  examples: [
+    [
+      {
+        input: {},
+        output: { instructions: "[...serialized instructions]" },
+        explanation: "Claim cashback across every quote mint that has a balance.",
+      },
+    ],
+  ],
+  schema: z.object({
+    quoteMint: z
+      .string()
+      .optional()
+      .describe("Claim only this quote mint instead of discovering all"),
+  }),
+  handler: async (kit, input) => {
+    const client = new PumpTradeClient(kit.connection);
+    const instructions = await client.buildClaimCashbackInstructions({
+      user: kit.wallet_address,
+      quoteMints: input.quoteMint ? [pk(input.quoteMint)] : undefined,
+    });
+    return { instructions: instructions.map(serializeIx) };
+  },
+};
+
+export const pumpCheckUsdcWhitelistAction: Action = {
+  name: "pump_check_usdc_whitelist",
+  similes: ["is usdc whitelisted on pump", "check pump quote mint whitelist"],
+  description:
+    "Check whether USDC is currently whitelisted as a quote mint on the pump.fun " +
+    "bonding-curve program, and list every whitelisted quote mint.",
+  examples: [
+    [
+      {
+        input: {},
+        output: {
+          whitelisted: "true",
+          currentWhitelist: '["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]',
+        },
+        explanation: "USDC is currently whitelisted.",
+      },
+    ],
+  ],
+  schema: z.object({}),
+  handler: async (kit) => {
+    const currentWhitelist = await WhitelistMonitor.getCurrentWhitelist(
+      kit.connection,
+    );
+    return {
+      whitelisted: currentWhitelist.some((m) => m.equals(USDC_MINT)),
+      currentWhitelist: currentWhitelist.map((m) => m.toBase58()),
+    };
+  },
+};
+
 export const allActions: Action[] = [
   createAgentPaymentsAction,
   buildPaymentInstructionsAction,
@@ -535,4 +736,9 @@ export const allActions: Action[] = [
   getConfigAction,
   getPaymentStatsAction,
   updateBuybackBpsAction,
+  pumpBuyAction,
+  pumpSellAction,
+  pumpBuyExactQuoteInAction,
+  pumpClaimCashbackAction,
+  pumpCheckUsdcWhitelistAction,
 ];
