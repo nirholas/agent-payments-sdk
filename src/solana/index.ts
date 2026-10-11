@@ -141,6 +141,10 @@ export type {
   EventSubscription,
 } from "./events";
 
+// Whitelist monitor: real-time detection of new quote mints (e.g. USDC).
+export { WhitelistMonitor, PUMP_GLOBAL_PDA } from "./WhitelistMonitor.js";
+export type { WhitelistChangeEvent } from "./WhitelistMonitor.js";
+
 // solana-agent-kit plugin
 export { PumpAgentPaymentsPlugin } from "./solana-agent-kit";
 
