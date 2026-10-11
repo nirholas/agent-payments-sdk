@@ -204,7 +204,7 @@ const ix = await agent.distributePayments({
 
 Account ordering matches [`SKILL.md`](SKILL.md#agent_distribute_payments).
 
-### Post-state verification — Step 3
+### Post-state verification - Step 3
 
 | Account | Expected |
 |---|---|
@@ -257,7 +257,7 @@ A coin was created via `pump-sdk`'s `createV2AndBuyInstructions` with
 > `--tokenized-agent` is set. It does NOT support the 1.0.7 path. To create a coin whose
 > agent lands on `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`, you MUST call
 > `pump-sdk` directly using `createV2AndBuyInstructions({ isTokenizedAgent: true })` as
-> shown below — do not use the bundled script.
+> shown below - do not use the bundled script.
 
 ```ts
 import { PumpSdk } from "@pump-fun/pump-sdk";
@@ -364,10 +364,10 @@ const [invoicePda] = getInvoiceIdPDA(
   new BN(Math.floor(Date.now() / 1000) + 86_400),
 );
 const invoiceInfo = await conn.getAccountInfo(invoicePda);
-if (!invoiceInfo) throw new Error("invoice PDA missing — payment did not land");
+if (!invoiceInfo) throw new Error("invoice PDA missing - payment did not land");
 ```
 
-### Step 3 — Buyback trigger on legacy
+### Step 3 - Buyback trigger on legacy
 
 The 1.0.7 `agentBuybackTrigger` ix has the same signature as the 3.0.x
 `agent_buyback_trigger` but is submitted to `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4`.
@@ -391,12 +391,12 @@ const buybackIx = await agent.buybackTrigger({
 });
 ```
 
-Note: the 1.0.7 IDL does not include `burn_currency_mint_vault` — the legacy
+Note: the 1.0.7 IDL does not include `burn_currency_mint_vault` - the legacy
 `agentBuybackTrigger` has one fewer account than the 3.0.x version (13 vs 16
 accounts). Check `src/solana/legacy-agent-payments/idl.json` for the exact
 account list when building raw instructions.
 
-### Post-state verification — Step 3
+### Post-state verification - Step 3
 
 | Account | Expected |
 |---|---|
@@ -413,7 +413,7 @@ const [burnAuth] = getBuybackAuthorityPDA(mint);
 const burnMintVaultAddr = await getAssociatedTokenAddress(mint, burnAuth, true);
 const vaultInfo = await conn.getTokenAccountBalance(burnMintVaultAddr);
 if (Number(vaultInfo.value.amount) !== 0) {
-  throw new Error("burn vault not empty — burn may have failed");
+  throw new Error("burn vault not empty - burn may have failed");
 }
 const mintInfo = await conn.getTokenSupply(mint);
 console.log("Current supply:", mintInfo.value.uiAmountString);
@@ -423,12 +423,12 @@ console.log("Current supply:", mintInfo.value.uiAmountString);
 
 | Capability | 3.0.x | 1.0.7 |
 |---|---|---|
-| `agent_transfer_extra_lamports` | available | absent — stray lamports cannot be swept; they accumulate on the agent record indefinitely. |
-| `global_remove_currency` | available (admin-only) | absent — once a currency is added to `GlobalConfig.supported_currencies_mint` it stays for the lifetime of the on-chain state. There is no way to remove it on 1.0.7. |
-| `burn_currency_mint_vault` account in `agentBuybackTrigger` | present (account #9 in 3.0.x) | absent — the 1.0.7 version of the ix does not include this account. |
-| Discriminator naming | snake_case (`agent_initialize`) | camelCase (`agentInitialize`) — the wire-level Anchor discriminator differs because Anchor hashes the instruction name string. |
-| Error names | PascalCase (`UnauthorizedSigner`) | camelCase (`unauthorizedSigner`) — same numeric codes 6000–6012. Note: 1.0.7 lacks error 6013 (`InvalidIndex`). |
-| `GlobalConfig` max error code | 6013 `InvalidIndex` | 6012 `accountTypeNotSupported` — error 6013 does not exist on 1.0.7. |
+| `agent_transfer_extra_lamports` | available | absent - stray lamports cannot be swept; they accumulate on the agent record indefinitely. |
+| `global_remove_currency` | available (admin-only) | absent - once a currency is added to `GlobalConfig.supported_currencies_mint` it stays for the lifetime of the on-chain state. There is no way to remove it on 1.0.7. |
+| `burn_currency_mint_vault` account in `agentBuybackTrigger` | present (account #9 in 3.0.x) | absent - the 1.0.7 version of the ix does not include this account. |
+| Discriminator naming | snake_case (`agent_initialize`) | camelCase (`agentInitialize`) - the wire-level Anchor discriminator differs because Anchor hashes the instruction name string. |
+| Error names | PascalCase (`UnauthorizedSigner`) | camelCase (`unauthorizedSigner`) - same numeric codes 6000-6012. Note: 1.0.7 lacks error 6013 (`InvalidIndex`). |
+| `GlobalConfig` max error code | 6013 `InvalidIndex` | 6012 `accountTypeNotSupported` - error 6013 does not exist on 1.0.7. |
 
 ### Discriminator differences between 1.0.7 and 3.0.x
 
@@ -436,7 +436,7 @@ Because Anchor hashes the instruction name to produce the 8-byte discriminator,
 and 1.0.7 uses camelCase while 3.0.x uses snake_case, the discriminators differ
 for every shared instruction. This means a transaction targeting the wrong program
 will fail with `AccountNotInitialized` or `InvalidAccountData` at the program
-account check — not a decode error. Always confirm the program ID before building
+account check - not a decode error. Always confirm the program ID before building
 the instruction.
 
 ### Failure modes specific to legacy
@@ -451,7 +451,7 @@ the instruction.
   `swapInstructionData` MUST encode a v2 buy when the curve has been
   migrated — see Scenario 4.
 - Calling `agent_transfer_extra_lamports` on a 1.0.7 agent via the 3.0.x SDK
-  will fail with `AccountNotInitialized` — the ix does not exist on `pUmPFn9...`.
+  will fail with `AccountNotInitialized` - the ix does not exist on `pUmPFn9...`.
   Detect the program first; if legacy, stray lamports must be left in place.
 
 ---
@@ -649,7 +649,7 @@ if (!info) throw new Error("bonding curve not found");
 
 const isV2 = info.data.length === 151;
 const isLegacy = info.data.length === 129;
-console.log(isV2 ? "v2 curve — use buy_v2" : "legacy curve — use buy");
+console.log(isV2 ? "v2 curve - use buy_v2" : "legacy curve - use buy");
 ```
 
 Once the curve has been migrated (first `buy_v2` or `sell_v2` after
@@ -718,14 +718,14 @@ const buybackVault = await getAssociatedTokenAddress(mint, burnAuth, true);
 // Both vaults should be drained after a successful buyback
 const buybackBal = await conn.getTokenAccountBalance(buybackVault);
 if (Number(buybackBal.value.amount) !== 0) {
-  console.error("SwapFailedAmountDidNotIncrease (6011) may have fired — check tx logs");
+  console.error("SwapFailedAmountDidNotIncrease (6011) may have fired - check tx logs");
 }
 const supplyResp = await conn.getTokenSupply(mint);
 console.log("Mint supply after buyback:", supplyResp.value.uiAmountString);
 ```
 
 The relevant error to watch for is `SwapFailedAmountDidNotIncrease` (code
-6011) — that is the symptom of submitting stale (legacy) swap-leg bytes
+6011) - that is the symptom of submitting stale (legacy) swap-leg bytes
 against a v2 curve. If it fires, rebuild the swap bytes per the instructions
 above.
 
@@ -736,11 +736,11 @@ above.
   - `data.length === 129`: legacy layout, no `quote_mint` field. Infer wSOL.
   - `data.length === 151`: v2 layout. Read `quote_mint` at bytes `[129..161]`.
 - A coin's quote currency is `BondingCurve.quote_mint` (v2) or wSOL inferred
-  (legacy). Do not assume wSOL for v2 curves — they may be USDC-paired.
+  (legacy). Do not assume wSOL for v2 curves - they may be USDC-paired.
 - Agent program ownership is unchanged by the curve migration: legacy agents
   stay on `pUmPFn9WvfaN2WTVGnCEtJTd2ATTpvpsKRz6jVzu6u4` forever. Do NOT
   attempt to migrate them to `AgenTMiC2hvxGebTsgmsD4HHBa8WEcqGFf87iwRRxLo7`
-  — there is no migration ix, and the two PDAs use the same seeds, so they
+  - there is no migration ix, and the two PDAs use the same seeds, so they
   resolve to different addresses under different programs; no collision occurs
   but also no automatic handoff.
 - Event logs: the pump program emits a `TradeMigratedToV2` event on the first
@@ -757,8 +757,8 @@ above.
 | Invoice ID PDA derivation | `[b"invoice-id", mint, currency_mint, ...]` on `pUmPFn9...` | unchanged. |
 | Per-currency payment vault PDA | `[b"payment-in-currency", mint, currency_mint]` on `pUmPFn9...` | unchanged. |
 | Distribute / withdraw mechanics | token transfers between PDAs within `pUmPFn9...` | unchanged. |
-| Existing unfilled invoices | valid | still valid — `agent_accept_payment` does not reference the bonding curve. |
-| Existing vault balances | unchanged by migration | unchanged — the curve migration does not touch agent-payments PDAs. |
+| Existing unfilled invoices | valid | still valid - `agent_accept_payment` does not reference the bonding curve. |
+| Existing vault balances | unchanged by migration | unchanged - the curve migration does not touch agent-payments PDAs. |
 
 ---
 

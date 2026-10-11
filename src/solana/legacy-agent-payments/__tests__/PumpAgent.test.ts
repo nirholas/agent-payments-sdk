@@ -133,7 +133,7 @@ describe("LegacyPumpAgent / updateBuybackBps override", () => {
 
     // We need to mock the program's account.globalConfig.fetch method.
     // LegacyPumpAgent uses getLegacyPumpProgramWithFallback(connection)
-    // which builds a real Program — we patch at the agent level after construction.
+    // which builds a real Program - we patch at the agent level after construction.
     const agent = new LegacyPumpAgent(MINT, mockConnection);
 
     const mockFetch = vi.fn().mockResolvedValue({
@@ -168,7 +168,7 @@ describe("LegacyPumpAgent / updateBuybackBps override", () => {
     const agent = new LegacyPumpAgent(MINT, mockConnection);
 
     // Patch fetch to return empty currencies, simulating what super would do
-    // if called without the option — but in this case we test the offline
+    // if called without the option - but in this case we test the offline
     // base class directly via a LegacyPumpAgentOffline import tested elsewhere.
     // Here we test that with empty array from globalConfig, super still works.
     const mockFetch = vi.fn().mockResolvedValue({

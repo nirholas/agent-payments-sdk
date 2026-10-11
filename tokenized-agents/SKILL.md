@@ -217,15 +217,15 @@ Args: none.
 | 0 | `global_buyback_authority` | yes | yes | Hard-gated to the key recorded on `global_config.buyback_authority`. Wallet must NEVER auto-sign. |
 | 1 | `mint` | yes | no | The agent's mint (writable so the burn can decrement supply). |
 | 2 | `token_agent_payments` | no | no | PDA `[b"token-agent-payments", mint]`. Read-only; provides `mint` field for downstream PDA derivations. |
-| 3 | `token_agent_payment_in_currency` | yes | no | PDA `[b"payment-in-currency", mint, currency_mint]`. Marked writable; inferred from IDL constraints — not confirmed against on-chain Rust. The instruction does not include `buyback_vault` in its account list. Based on the account structure, `token_agent_payment_in_currency` is likely updated for balance accounting (e.g. recording the buyback amount or zeroing a counter) while the actual currency tokens are transferred from `burn_currency_mint_vault` (which for SPL Token currencies — USDC, wSOL — resolves to the same address as `buyback_vault`). |
+| 3 | `token_agent_payment_in_currency` | yes | no | PDA `[b"payment-in-currency", mint, currency_mint]`. Marked writable; inferred from IDL constraints - not confirmed against on-chain Rust. The instruction does not include `buyback_vault` in its account list. Based on the account structure, `token_agent_payment_in_currency` is likely updated for balance accounting (e.g. recording the buyback amount or zeroing a counter) while the actual currency tokens are transferred from `burn_currency_mint_vault` (which for SPL Token currencies - USDC, wSOL - resolves to the same address as `buyback_vault`). |
 | 4 | `currency_mint` | no | no | |
 | 5 | `global_config` | no | no | PDA `[b"global-config"]`. |
 | 6 | `swap_program_to_invoke` | no | no | Caller-chosen, must be on the protocol allow-list (else `InvalidProgramToInvoke`). |
 | 7 | `burn_authority` | yes | no | PDA `[b"buyback-authority", mint]`. Same seeds as `buyback_authority` in `agent_distribute_payments`; they are the same on-chain account, renamed here to avoid confusion with `global_buyback_authority`. |
 | 8 | `burn_mint_vault` | yes | no | ATA: owner = `burn_authority`, mint = agent's `mint`, token-program = `token_program`. Receives swap output before burn. |
 | 9 | `burn_currency_mint_vault` | yes | no | ATA: owner = `burn_authority`, mint = `currency_mint`, token-program = `token_program_currency`. This is the currency source for the swap. For SPL Token currencies (USDC, wSOL), this address is identical to `buyback_vault` from `agent_distribute_payments`. The naming differs because the 3.0.x program uses the runtime `token_program_currency` account in the ATA derivation rather than the hardcoded SPL Token program bytes used by `buyback_vault`. |
-| 10 | `token_program` | no | no | SPL Token or Token-2022 — for the agent's mint. |
-| 11 | `token_program_currency` | no | no | SPL Token or Token-2022 — for the currency mint (USDC is SPL Token; agent mints are typically Token-2022). |
+| 10 | `token_program` | no | no | SPL Token or Token-2022 - for the agent's mint. |
+| 11 | `token_program_currency` | no | no | SPL Token or Token-2022 - for the currency mint (USDC is SPL Token; agent mints are typically Token-2022). |
 | 12 | `associated_token_program` | no | no | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`. |
 | 13 | `system_program` | no | no | `11111111111111111111111111111111`. |
 | 14 | `event_authority` | no | no | PDA `[b"__event_authority"]`. |

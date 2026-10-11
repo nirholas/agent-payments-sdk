@@ -23,7 +23,7 @@ metadata:
 - [ ] Holder rewards desired? Routes all creator fees to the coin's holders instead of the creator wallet (default off). Cashback coins can no longer be created.
 - [ ] Custom creator fee (basis points)? Only if the protocol has configurable creator fees enabled (default: protocol rate).
 - [ ] Mayhem mode desired? (default off)
-- [ ] Tokenized agent desired? (default off). If yes: buyback percentage, **and** whether the legacy 1.0.7 agent program is required by downstream tooling (default: modern 3.0.x — see "Choosing legacy vs modern agent program"). This choice is **irreversible per coin**.
+- [ ] Tokenized agent desired? (default off). If yes: buyback percentage, **and** whether the legacy 1.0.7 agent program is required by downstream tooling (default: modern 3.0.x - see "Choosing legacy vs modern agent program"). This choice is **irreversible per coin**.
 - [ ] Front-runner protection desired? If yes, confirm tip amount (default 0.0001 SOL). Transactions will be sent **only** to Jito block engine endpoints.
 
 You MUST ask the user for ALL unchecked items in your very first response. Do not assume defaults. Do not proceed until the user has explicitly answered each one.
