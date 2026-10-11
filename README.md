@@ -140,7 +140,7 @@ const config = await agent.getAgentConfig();
 
 | Subpath | Description |
 |---|---|
-| `@nirholas/agent-payments-sdk` | Re-exports the Solana and EVM surfaces; namespaced as `solana`, `evm`, `x402Evm`. See [src/index.ts](src/index.ts). |
+| `@nirholas/agent-payments-sdk` | Re-exports the Solana and EVM surfaces; namespaced as `solana`, `evm`, `x402Evm`. Also exports `CrossChainPaymentClient` for EVM to Solana cross-chain flows. See [src/index.ts](src/index.ts). |
 | `@nirholas/agent-payments-sdk/solana` | `PumpAgent`, `PumpAgentOffline`, PDAs, decoders, events, the `legacyAgentPayments` namespace, and the `x402` namespace. See [src/solana/index.ts](src/solana/index.ts). |
 | `@nirholas/agent-payments-sdk/evm` | `EvmAgent`, `EvmAgentOffline`, ABIs, chain registry, invoice helpers, event parser. See [src/evm/index.ts](src/evm/index.ts). |
 | `@nirholas/agent-payments-sdk/x402` | `createEvmX402Fetch` client and EVM facilitator. See [src/x402/index.ts](src/x402/index.ts). |
