@@ -60,13 +60,13 @@ describe("legacy-agent-payments / program", () => {
 describe("legacy-agent-payments / NOOP_WALLET rejecters", () => {
   it("signTransaction rejects with 'read-only wallet'", async () => {
     await expect(
-      NOOP_WALLET.signTransaction({} as never),
+      (NOOP_WALLET.signTransaction as (tx: unknown) => Promise<never>)({}),
     ).rejects.toThrow("read-only wallet");
   });
 
   it("signAllTransactions rejects with 'read-only wallet'", async () => {
     await expect(
-      NOOP_WALLET.signAllTransactions([] as never),
+      (NOOP_WALLET.signAllTransactions as (txs: unknown[]) => Promise<never>)([]),
     ).rejects.toThrow("read-only wallet");
   });
 });
