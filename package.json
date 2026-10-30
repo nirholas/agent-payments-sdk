@@ -118,12 +118,12 @@
     "@solana/web3.js": "^1.98.0",
     "bn.js": "^5.2.3",
     "viem": "^2.21.0",
-    "zod": "^3.0.0"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@solana/web3.js": "^1.98.0",
-    "zod": "^3.0.0"
+    "zod": "^4.6.7"
   },
   "peerDependenciesMeta": {
     "@coral-xyz/anchor": {
