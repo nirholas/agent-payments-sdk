@@ -173,7 +173,7 @@ async function verifyUsdcTransfer({ txSignature, payTo, minAmount, network }) {
   let tx;
   try {
     tx = await connection.getParsedTransaction(txSignature, {
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
       commitment: 'confirmed',
     });
   } catch (err) {

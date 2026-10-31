@@ -114,7 +114,7 @@ async function scanPdaTransactions(
     if (sig.err) continue;
     await sleep(FETCH_DELAY_MS);
     const tx = await connection.getTransaction(sig.signature, {
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
     });
     if (!tx?.meta?.logMessages) continue;
 

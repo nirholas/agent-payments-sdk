@@ -323,7 +323,7 @@ export class PumpAgent extends PumpAgentOffline {
     for (const sig of signatures) {
       if (sig.err) continue;
       const tx = await connection.getTransaction(sig.signature, {
-        maxSupportedTransactionVersion: 0,
+        maxSupportedTransactionVersion: 1,
       });
       if (!tx?.meta?.logMessages) continue;
 
@@ -361,7 +361,7 @@ export class PumpAgent extends PumpAgentOffline {
     for (const sig of signatures) {
       if (sig.err) continue;
       const tx = await connection.getTransaction(sig.signature, {
-        maxSupportedTransactionVersion: 0,
+        maxSupportedTransactionVersion: 1,
       });
       if (!tx?.meta?.logMessages) continue;
 
@@ -458,7 +458,7 @@ export class PumpAgent extends PumpAgentOffline {
 
     for (const sig of signatures) {
       const tx = await connection.getTransaction(sig.signature, {
-        maxSupportedTransactionVersion: 0,
+        maxSupportedTransactionVersion: 1,
       });
       if (!tx || tx.meta?.err) continue;
 

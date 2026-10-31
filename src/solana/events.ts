@@ -158,7 +158,7 @@ export function createEventParser(
  *
  * @example
  * ```ts
- * const tx = await connection.getTransaction(sig, { maxSupportedTransactionVersion: 0 });
+ * const tx = await connection.getTransaction(sig, { maxSupportedTransactionVersion: 1 });
  * const events = parseAgentEvents(tx.meta.logMessages);
  * for (const event of events) {
  *   if (event.name === "agentAcceptPaymentEvent") {

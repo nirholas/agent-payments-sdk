@@ -41,7 +41,7 @@ async function main() {
     if (s.err) continue;
     await sleep(1200); // stay under public RPC rate limit
     const tx = await conn.getTransaction(s.signature, {
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1,
     });
     if (!tx?.meta?.logMessages) continue;
     const events = parser.parseLogs(tx.meta.logMessages);

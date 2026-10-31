@@ -156,3 +156,28 @@ describe("PumpAgent.getBalances", () => {
     expect(balances.paymentVault.balance).toBe(5n);
   });
 });
+
+describe("PumpAgent transaction history", () => {
+  const sigs = [{ signature: "sig1", err: null }];
+
+  // Version 1 transactions are rejected by getTransaction unless the caller
+  // declares support for version 1, which ended the whole history call.
+  it.each([
+    ["getPaymentHistory", (a: PumpAgent) => a.getPaymentHistory()],
+    ["getEventHistory", (a: PumpAgent) => a.getEventHistory()],
+  ])("%s accepts version 1 transactions", async (_name, run) => {
+    const getTransaction = vi.fn(async (_sig: string, opts?: { maxSupportedTransactionVersion?: number }) => {
+      if ((opts?.maxSupportedTransactionVersion ?? -1) < 1) {
+        throw new Error("Transaction version (1) is not supported by the requesting client");
+      }
+      return null;
+    });
+    const connection = {
+      getSignaturesForAddress: vi.fn(async () => sigs),
+      getTransaction,
+    } as unknown as import("@solana/web3.js").Connection;
+    const agent = new PumpAgent(Keypair.generate().publicKey, "mainnet", connection);
+    await expect(run(agent)).resolves.toEqual([]);
+    expect(getTransaction).toHaveBeenCalledWith("sig1", { maxSupportedTransactionVersion: 1 });
+  });
+});
