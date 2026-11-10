@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Create USDC-paired coins on pump.fun",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "check-usdc-whitelist": "node scripts/check-usdc-whitelist.mjs",
     "simulate-create": "node scripts/simulate-create-usdc-coin.mjs",
@@ -16,5 +18,17 @@
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
     "bn.js": "^5.2.2"
+  },
+  "overrides": {
+    "toml@<=5.0.0": "^5.0.1",
+    "toml@<4.2.0": "^5.0.1",
+    "toml@<4.1.2": "^5.0.1",
+    "stream-json@<=3.5.0": "^3.6.0",
+    "stream-json@<3.6.0": "^3.6.0",
+    "stream-json@<=3.4.0": "^3.6.0",
+    "ws@>=8.0.0 <8.21.0": "^8.21.0",
+    "ws@>=7.0.0 <7.5.11": "^7.5.11",
+    "ws@>=8.0.0 <8.20.1": "^8.21.0",
+    "uuid@<11.1.1": "^11.1.1"
   }
 }
