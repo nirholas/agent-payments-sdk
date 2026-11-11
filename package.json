@@ -143,7 +143,8 @@
     "@vitest/coverage-v8": "^4.1.5",
     "tsup": "^8.3.5",
     "typescript": "^5.7.3",
-    "vitest": "^4.1.5"
+    "vitest": "^4.1.5",
+    "bigint-buffer": "file:vendor/bigint-buffer"
   },
   "overrides": {
     "@vitest/mocker@>=4.1.11 <4.1.12": "^4.1.12",
@@ -158,6 +159,7 @@
     "ws@>=7.0.0 <7.5.11": "^7.5.11",
     "ws@>=8.0.0 <8.20.1": "^8.21.0",
     "esbuild@>=0.27.3 <0.28.1": "^0.28.1",
-    "uuid@<11.1.1": "^11.1.1"
+    "uuid@<11.1.1": "^11.1.1",
+    "bigint-buffer": "$bigint-buffer"
   }
 }
