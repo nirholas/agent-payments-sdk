@@ -38,7 +38,7 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import pumpIdl from "./idl/pump.json";
-import ammIdl from "../../pump-public-docs/idl/pump_amm.json";
+import ammIdl from "./idl/pump_amm.json";
 import solCurve from "./fixtures/pump-accounts/sol-curve.json";
 import {
   CoinNotFoundError,

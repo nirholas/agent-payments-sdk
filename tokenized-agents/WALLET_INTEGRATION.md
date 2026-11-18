@@ -177,8 +177,8 @@ Anchor errors at simulation time will fail at execution time too.
 ## 4. Cashback claim UX
 
 The pump program's `claim_cashback_v2` (see
-[`pump-public-docs/docs/instructions/CLAIM_CASHBACK.md`](../pump-public-docs/docs/instructions/CLAIM_CASHBACK.md)
-and [`pump-public-docs/idl/pump.json`](../pump-public-docs/idl/pump.json))
+[`https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/CLAIM_CASHBACK.md`](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/CLAIM_CASHBACK.md)
+and [`https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json`](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json))
 handles two cases through the same instruction. The wallet UX must branch on
 which case applies because the on-chain effect — and therefore what the user
 sees in their wallet afterward — is different.

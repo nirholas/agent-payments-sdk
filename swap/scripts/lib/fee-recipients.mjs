@@ -6,7 +6,7 @@ import { PublicKey } from "@solana/web3.js";
  * file mirrors it for the standalone .mjs scripts (which can't import
  * .ts at runtime). Keep both in sync.
  *
- * Source: pump-public-docs/docs/FEE_RECIPIENTS.md; equal to the live
+ * Source: https://github.com/pump-fun/pump-public-docs/blob/main/docs/FEE_RECIPIENTS.md; equal to the live
  * `Global.buybackFeeRecipients` list as of @pump-fun/pump-sdk 4.0.0. Prefer
  * `pickGlobalBuybackFeeRecipient(global)`, which reads that live list.
  */

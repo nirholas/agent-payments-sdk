@@ -225,7 +225,7 @@ The [vendor/](vendor/) tree contains reference copies of upstream dependencies. 
 | [vendor/agent-payments-sdk-npm/](vendor/agent-payments-sdk-npm/) | The 1.0.7 npm bundle the legacy module was reconstructed from. |
 | [vendor/agent-payments-sdk-107/](vendor/agent-payments-sdk-107/) | Unpacked copy of the same 1.0.7 build, kept for reading; the tests use the npm alias above. |
 | [vendor/pump-segments-sdk/](vendor/pump-segments-sdk/) | Pump segments SDK reference. |
-| [vendor/transfer-hook-authority/](vendor/transfer-hook-authority/) | Reference source for the transfer-hook authority program. |
+| [pump-fun/transfer-hook-authority](https://github.com/pump-fun/transfer-hook-authority) | Upstream source for the transfer-hook authority program. |
 
 ## Build / test / contribute
 

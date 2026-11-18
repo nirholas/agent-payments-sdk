@@ -29,7 +29,7 @@ const FAKE_MINT = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"); 
 const FAKE_USER = new PublicKey("DRiP2Pn2K6fuMLKQmt5rZWyHiUZ6WK3GChEySUpHSS4");
 const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
-// Discriminators from pump-public-docs/idl/pump.ts
+// Discriminators from https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.ts
 const BUY_V2_DISC = [184, 23, 238, 97, 103, 197, 211, 61];
 const SELL_V2_DISC = [93, 246, 130, 60, 231, 233, 64, 178];
 const BUY_EXACT_QUOTE_IN_V2_DISC = [194, 171, 28, 70, 104, 77, 91, 47];

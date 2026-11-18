@@ -2,7 +2,7 @@
 
 # v2 Trading Reference
 
-Reference for the 2026-05-07 pump-program upgrade and the v2 trading instructions it shipped. Sources: the IDL at [pump-public-docs/idl/pump.json](../pump-public-docs/idl/pump.json), the Rust client at [vendor/pump-rust-client/src/sdk/pump_v2.rs](../vendor/pump-rust-client/src/sdk/pump_v2.rs), and the vendored npm SDK at [vendor/pump-sdk-npm/src/sdk.ts](../vendor/pump-sdk-npm/src/sdk.ts).
+Reference for the 2026-05-07 pump-program upgrade and the v2 trading instructions it shipped. Sources: the IDL at [https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json), the Rust client at [vendor/pump-rust-client/src/sdk/pump_v2.rs](../vendor/pump-rust-client/src/sdk/pump_v2.rs), and the vendored npm SDK at [vendor/pump-sdk-npm/src/sdk.ts](../vendor/pump-sdk-npm/src/sdk.ts).
 
 ## 1. The 2026-05-07 upgrade
 
@@ -10,7 +10,7 @@ The pump program (`6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P`) shipped a non-b
 
 ## 2. New instructions
 
-Discriminators and arg lists are extracted directly from [pump-public-docs/idl/pump.json](../pump-public-docs/idl/pump.json). TS helper names are from `PumpSdk` in `@pump-fun/pump-sdk` 4.0.0, the version every package in this repo pins (the decompiled 1.35.x copy under [vendor/pump-sdk-npm/](../vendor/pump-sdk-npm/) is a historical reference only).
+Discriminators and arg lists are extracted directly from [https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json). TS helper names are from `PumpSdk` in `@pump-fun/pump-sdk` 4.0.0, the version every package in this repo pins (the decompiled 1.35.x copy under [vendor/pump-sdk-npm/](../vendor/pump-sdk-npm/) is a historical reference only).
 
 | Instruction | Discriminator | Args | TS helper | Local script |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Discriminators and arg lists are extracted directly from [pump-public-docs/idl/p
 
 `is_cashback_enabled` must no longer be set to `true`: the program now rejects new cashback coins with error 6082 `CashbackDeprecated`, and `@pump-fun/pump-sdk` 2.x and later throw `CashbackDeprecatedError` client-side. Existing cashback coins are unaffected: they still trade through `buy_v2`/`sell_v2` and their traders still claim through `claim_cashback_v2`. `creator_fee_bps` and `is_holder_reward` arrived with pump-sdk 2.0 and are set through `createV2Instruction`'s `creatorFeeBps` and `holderReward` params.
 
-The `max_sol_cost` and `min_sol_output` arg names in `buy_v2`/`sell_v2` are inherited verbatim from the v1 instructions; they refer to quote-token amounts when `quoteMint != wSOL`. Account lists are large (~25 accounts each); read them straight from [pump-public-docs/idl/pump.json](../pump-public-docs/idl/pump.json) when wiring a custom client.
+The `max_sol_cost` and `min_sol_output` arg names in `buy_v2`/`sell_v2` are inherited verbatim from the v1 instructions; they refer to quote-token amounts when `quoteMint != wSOL`. Account lists are large (~25 accounts each); read them straight from [https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json) when wiring a custom client.
 
 ## 3. `BondingCurve` account changes
 
@@ -127,7 +127,7 @@ As of the 2026-05-07 announcement, USDC enablement is pending; verify current st
 
 ## 10. October 2026: v3 trades, multi-hop and held fees
 
-The October 2026 release (`@pump-fun/pump-sdk` 4.0.0, `@pump-fun/pump-swap-sdk` 2.1.0) adds a third generation of bonding-curve trades, a cross-venue router and AMM v2 trades. Upstream docs: [pump-public-docs/docs/instructions/BUY.md](../pump-public-docs/docs/instructions/BUY.md), [SELL.md](../pump-public-docs/docs/instructions/SELL.md), [SWEEP_FEES.md](../pump-public-docs/docs/instructions/SWEEP_FEES.md) and [PUMP_SWAP_README.md](../pump-public-docs/docs/PUMP_SWAP_README.md).
+The October 2026 release (`@pump-fun/pump-sdk` 4.0.0, `@pump-fun/pump-swap-sdk` 2.1.0) adds a third generation of bonding-curve trades, a cross-venue router and AMM v2 trades. Upstream docs: [https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md), [SELL.md](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SELL.md), [SWEEP_FEES.md](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SWEEP_FEES.md) and [PUMP_SWAP_README.md](https://github.com/pump-fun/pump-public-docs/blob/main/docs/PUMP_SWAP_README.md).
 
 | Instruction | Program | TS helper | Local script |
 |---|---|---|---|
@@ -142,7 +142,7 @@ The October 2026 release (`@pump-fun/pump-sdk` 4.0.0, `@pump-fun/pump-swap-sdk` 
 
 **v3 trades** price exactly like v2 but hold the fees on the curve: only the buyback slice leaves in the trade, and `BondingCurve.creatorFee` / `protocolFees` accumulate until a permissionless sweep. Each takes 17 accounts and costs roughly 45k CU (simulated on mainnet). Cashback coins are refused with 6094 `CashbackCoinNotSupported`; keep them on v2. Quote buys with `getBuyV3TokenAmountFromQuoteAmount` / `getBuyV3QuoteAmountFromTokenAmount`, which take `curveBaseTokenBalance` from `OnlinePumpSdk.fetchBuyState` and price the post-completion leg when a buy runs past the remaining supply.
 
-**AMM v2 trades** do the same on a pool: fees are booked into `Pool.protocolFees` / `Pool.creatorFees`, and `Pool.virtualQuoteReserves` (now a signed `i128`) is lowered by the held amount so it never prices as liquidity. Let the SDK compute effective reserves; anyone pricing a pool by hand must add the signed value to the quote vault balance ([NEGATIVE_VIRTUAL_QUOTE_RESERVES.md](../pump-public-docs/docs/NEGATIVE_VIRTUAL_QUOTE_RESERVES.md)).
+**AMM v2 trades** do the same on a pool: fees are booked into `Pool.protocolFees` / `Pool.creatorFees`, and `Pool.virtualQuoteReserves` (now a signed `i128`) is lowered by the held amount so it never prices as liquidity. Let the SDK compute effective reserves; anyone pricing a pool by hand must add the signed value to the quote vault balance ([NEGATIVE_VIRTUAL_QUOTE_RESERVES.md](https://github.com/pump-fun/pump-public-docs/blob/main/docs/NEGATIVE_VIRTUAL_QUOTE_RESERVES.md)).
 
 **Multi-hop** routes an exact-in swap through any chain of pump curves and canonical pools, charging the protocol fee once and the creator fee once. Resolve with `OnlinePumpSdk.resolveMultiHopRoute(path, side)`, quote with `simulateMultiHopSwap`, then build with `minAmountOut` below the simulated output. It takes 16 accounts plus 5 per hop and about 200k CU per hop; routes past three hops need an address lookup table.
 

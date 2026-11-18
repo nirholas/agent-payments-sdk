@@ -97,7 +97,7 @@ Two consequences:
    route used by Jupiter (or whatever aggregator) goes through the pump
    bonding curve and that curve has been migrated to v2 (account size 151B,
    `quote_mint` field set on the `BondingCurve` struct — see
-   [`pump-public-docs/idl/pump.json`](../pump-public-docs/idl/pump.json) ->
+   [`https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json`](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json) ->
    `BondingCurve`), the swap leg must call `buy_v2` or `buy_exact_quote_in_v2`
    rather than the legacy `buy`. Pre-v2 `buy` against a v2 curve will fail
    with an account-layout mismatch.
@@ -310,7 +310,7 @@ PascalCase vs camelCase names) on both programs.
 
 Pump bonding-curve errors that may surface during `agent_buyback_trigger`'s
 swap leg (when the route touches the pump program directly) — see
-[`pump-public-docs/idl/pump.json`](../pump-public-docs/idl/pump.json) `errors`.
+[`https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json`](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json) `errors`.
 
 ## Where the rest of the documentation lives
 

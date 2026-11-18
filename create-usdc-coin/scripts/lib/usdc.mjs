@@ -8,7 +8,7 @@ export const USDC_MINT_DEVNET =
 /** USDC has 6 decimals on Solana — 1 USDC = 1_000_000 base units. */
 export const USDC_DECIMALS = 6;
 
-/** Sourced from pump-public-docs/idl/pump.ts (errors 6000–6069). */
+/** Sourced from https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.ts (errors 6000–6069). */
 export const PUMP_ERRORS_BY_CODE = {
   6000: "notAuthorized",
   6001: "alreadyInitialized",

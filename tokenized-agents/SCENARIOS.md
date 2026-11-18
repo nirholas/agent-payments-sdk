@@ -593,8 +593,8 @@ that takes USDC as input mint and the agent's coin as output mint, instead
 of the wSOL→coin swap from Scenario 1. The pump program leg of that route, if
 present, is `buy_v2` or `buy_exact_quote_in_v2` (the v2 family — these are
 the only buy ix that accept a non-SOL quote — see
-[`pump-public-docs/idl/pump.json`](../pump-public-docs/idl/pump.json) and
-[`pump-public-docs/docs/instructions/BUY.md`](../pump-public-docs/docs/instructions/BUY.md)).
+[`https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json`](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json) and
+[`https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md`](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md)).
 
 ### Post-state verification — Step 4
 

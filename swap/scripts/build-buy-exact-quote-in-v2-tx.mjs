@@ -10,7 +10,7 @@
  * `NotEnoughTokensToBuy`. For the leaner v3 path (fees booked on the curve,
  * swept later) use build-buy-bonding-v3-tx.mjs --exact-quote-in.
  *
- * Reference: pump-public-docs/idl/pump.json (instruction
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json (instruction
  * `buy_exact_quote_in_v2`, discriminator [194,171,28,70,104,77,91,47]).
  */
 import { parseArgs } from "node:util";

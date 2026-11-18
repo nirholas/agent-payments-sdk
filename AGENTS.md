@@ -18,7 +18,6 @@ TypeScript SDK for Pump Agent Payments. Owned by [@pump-fun](https://github.com/
 - `create-coin/`
 - `create-usdc-coin/`
 - `docs/`
-- `pump-public-docs/`
 - `scripts/`
 - `src/`
 - `swap/`

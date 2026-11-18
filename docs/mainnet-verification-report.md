@@ -266,7 +266,7 @@ Program 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P failed: custom program error
 
 ### IDL cross-reference
 
-`0x17af = 6063 (decimal)` matches IDL error `unsupportedQuoteMint` ("Unsupported quote mint") in `pump-public-docs/idl/pump.json`:
+`0x17af = 6063 (decimal)` matches IDL error `unsupportedQuoteMint` ("Unsupported quote mint") in `https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json`:
 
 ```json
 { "code": 6063, "name": "unsupportedQuoteMint", "msg": "Unsupported quote mint" }
