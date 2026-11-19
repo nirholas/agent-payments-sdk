@@ -238,3 +238,29 @@ describe("PumpAgent.validateInvoicePayment", () => {
     ).rejects.toThrow(RangeError);
   });
 });
+
+describe("PumpAgent account reads against the real Anchor program", () => {
+  // Anchor 0.31 registers account clients under camelCase names. Reading the
+  // PascalCase names threw "Cannot read properties of undefined".
+  it("fetches GlobalConfig, TokenAgentPayments and TokenAgentPaymentInCurrency", async () => {
+    const mint = Keypair.generate().publicKey;
+    const getAccountInfo = vi.fn(async () => null);
+    const connection = {
+      getAccountInfo,
+      getAccountInfoAndContext: vi.fn(async () => ({ context: { slot: 1 }, value: null })),
+      rpcEndpoint: "http://localhost:8899",
+      commitment: "confirmed",
+    } as unknown as import("@solana/web3.js").Connection;
+    const agent = new PumpAgent(mint, "mainnet", connection);
+
+    for (const read of [
+      () => agent.getGlobalConfig(),
+      () => agent.getAgentConfig(),
+      () => agent.getPaymentStats(USDC_MINT),
+    ]) {
+      // The mock has no account data, so Anchor reports a missing account
+      // rather than the client lookup itself blowing up.
+      await expect(read()).rejects.toThrow(/does not exist|not found/i);
+    }
+  });
+});

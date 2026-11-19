@@ -543,23 +543,23 @@ export type PumpAgentPayments = {
     },
   ];
   accounts: [
-    { name: "BondingCurve"; discriminator: [23, 183, 248, 55, 96, 216, 172, 96] },
-    { name: "GlobalConfig"; discriminator: [149, 8, 156, 202, 160, 252, 176, 217] },
-    { name: "TokenAgentPaymentInCurrency"; discriminator: [225, 195, 81, 227, 115, 43, 25, 177] },
-    { name: "TokenAgentPayments"; discriminator: [136, 241, 242, 217, 173, 77, 112, 186] },
+    { name: "bondingCurve"; discriminator: [23, 183, 248, 55, 96, 216, 172, 96] },
+    { name: "globalConfig"; discriminator: [149, 8, 156, 202, 160, 252, 176, 217] },
+    { name: "tokenAgentPaymentInCurrency"; discriminator: [225, 195, 81, 227, 115, 43, 25, 177] },
+    { name: "tokenAgentPayments"; discriminator: [136, 241, 242, 217, 173, 77, 112, 186] },
   ];
   events: [
-    { name: "AgentAcceptPaymentEvent"; discriminator: [114, 190, 188, 192, 105, 79, 41, 147] },
-    { name: "AgentBuybackTriggerEvent"; discriminator: [139, 240, 9, 225, 214, 63, 232, 165] },
-    { name: "AgentDistributePaymentsEvent"; discriminator: [137, 116, 114, 140, 54, 111, 230, 26] },
-    { name: "AgentInitializeEvent"; discriminator: [192, 5, 183, 151, 0, 64, 100, 207] },
-    { name: "AgentUpdateAuthorityEvent"; discriminator: [36, 212, 117, 235, 74, 166, 60, 16] },
-    { name: "AgentUpdateBuybackBpsEvent"; discriminator: [165, 251, 40, 19, 114, 26, 128, 232] },
-    { name: "AgentWithdrawEvent"; discriminator: [174, 231, 201, 69, 254, 183, 49, 85] },
-    { name: "ExtendAccountEvent"; discriminator: [97, 97, 215, 144, 93, 146, 22, 124] },
-    { name: "GlobalAddNewCurrencyEvent"; discriminator: [130, 202, 37, 248, 241, 182, 233, 35] },
-    { name: "GlobalConfigInitializeEvent"; discriminator: [241, 51, 222, 190, 142, 245, 176, 53] },
-    { name: "GlobalUpdateAuthoritiesEvent"; discriminator: [82, 27, 22, 232, 53, 66, 35, 207] },
+    { name: "agentAcceptPaymentEvent"; discriminator: [114, 190, 188, 192, 105, 79, 41, 147] },
+    { name: "agentBuybackTriggerEvent"; discriminator: [139, 240, 9, 225, 214, 63, 232, 165] },
+    { name: "agentDistributePaymentsEvent"; discriminator: [137, 116, 114, 140, 54, 111, 230, 26] },
+    { name: "agentInitializeEvent"; discriminator: [192, 5, 183, 151, 0, 64, 100, 207] },
+    { name: "agentUpdateAuthorityEvent"; discriminator: [36, 212, 117, 235, 74, 166, 60, 16] },
+    { name: "agentUpdateBuybackBpsEvent"; discriminator: [165, 251, 40, 19, 114, 26, 128, 232] },
+    { name: "agentWithdrawEvent"; discriminator: [174, 231, 201, 69, 254, 183, 49, 85] },
+    { name: "extendAccountEvent"; discriminator: [97, 97, 215, 144, 93, 146, 22, 124] },
+    { name: "globalAddNewCurrencyEvent"; discriminator: [130, 202, 37, 248, 241, 182, 233, 35] },
+    { name: "globalConfigInitializeEvent"; discriminator: [241, 51, 222, 190, 142, 245, 176, 53] },
+    { name: "globalUpdateAuthoritiesEvent"; discriminator: [82, 27, 22, 232, 53, 66, 35, 207] },
   ];
   errors: [
     { code: 6000; name: "UnauthorizedSigner"; msg: "The given account is not authorized to execute this instruction." },
@@ -579,7 +579,7 @@ export type PumpAgentPayments = {
   ];
   types: [
     {
-      name: "AgentAcceptPaymentEvent";
+      name: "agentAcceptPaymentEvent";
       type: {
         kind: "struct";
         fields: [
@@ -598,7 +598,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentBuybackTriggerEvent";
+      name: "agentBuybackTriggerEvent";
       type: {
         kind: "struct";
         fields: [
@@ -614,7 +614,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentDistributePaymentsEvent";
+      name: "agentDistributePaymentsEvent";
       type: {
         kind: "struct";
         fields: [
@@ -628,7 +628,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentInitializeEvent";
+      name: "agentInitializeEvent";
       type: {
         kind: "struct";
         fields: [
@@ -642,7 +642,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentUpdateAuthorityEvent";
+      name: "agentUpdateAuthorityEvent";
       type: {
         kind: "struct";
         fields: [
@@ -654,7 +654,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentUpdateBuybackBpsEvent";
+      name: "agentUpdateBuybackBpsEvent";
       type: {
         kind: "struct";
         fields: [
@@ -667,7 +667,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "AgentWithdrawEvent";
+      name: "agentWithdrawEvent";
       type: {
         kind: "struct";
         fields: [
@@ -680,7 +680,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "BondingCurve";
+      name: "bondingCurve";
       type: {
         kind: "struct";
         fields: [
@@ -696,7 +696,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "ExtendAccountEvent";
+      name: "extendAccountEvent";
       type: {
         kind: "struct";
         fields: [
@@ -709,7 +709,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "GlobalAddNewCurrencyEvent";
+      name: "globalAddNewCurrencyEvent";
       type: {
         kind: "struct";
         fields: [
@@ -720,7 +720,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "GlobalConfig";
+      name: "globalConfig";
       type: {
         kind: "struct";
         fields: [
@@ -733,7 +733,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "GlobalConfigInitializeEvent";
+      name: "globalConfigInitializeEvent";
       type: {
         kind: "struct";
         fields: [
@@ -745,7 +745,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "GlobalUpdateAuthoritiesEvent";
+      name: "globalUpdateAuthoritiesEvent";
       type: {
         kind: "struct";
         fields: [
@@ -757,7 +757,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "TokenAgentPaymentInCurrency";
+      name: "tokenAgentPaymentInCurrency";
       type: {
         kind: "struct";
         fields: [
@@ -771,7 +771,7 @@ export type PumpAgentPayments = {
       };
     },
     {
-      name: "TokenAgentPayments";
+      name: "tokenAgentPayments";
       type: {
         kind: "struct";
         fields: [

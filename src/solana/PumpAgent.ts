@@ -211,7 +211,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const globalConfigAccount =
-      await this.program.account.GlobalConfig.fetch(globalConfigPda);
+      await this.program.account.globalConfig.fetch(globalConfigPda);
 
     const mints = globalConfigAccount.supportedCurrenciesMint.filter(
       (m: PublicKey) => !PublicKey.default.equals(m),
@@ -245,7 +245,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getTokenAgentPaymentsPDA(this.mint);
-    return this.program.account.TokenAgentPayments.fetch(pda);
+    return this.program.account.tokenAgentPayments.fetch(pda);
   }
 
   /**
@@ -257,7 +257,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getGlobalConfigPDA();
-    return this.program.account.GlobalConfig.fetch(pda);
+    return this.program.account.globalConfig.fetch(pda);
   }
 
   /**
@@ -271,7 +271,7 @@ export class PumpAgent extends PumpAgentOffline {
     if (!connection) throw new Error("Connection is required");
 
     const [pda] = getPaymentInCurrencyPDA(this.mint, currencyMint);
-    return this.program.account.TokenAgentPaymentInCurrency.fetch(pda);
+    return this.program.account.tokenAgentPaymentInCurrency.fetch(pda);
   }
 
   /**
