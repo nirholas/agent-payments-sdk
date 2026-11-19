@@ -1,6 +1,6 @@
 {
   "name": "@nirholas/agent-payments-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "TypeScript SDK for Pump Agent Payments on Solana, with EVM payment helpers and x402 clients",
   "publishConfig": {
     "access": "public"
