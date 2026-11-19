@@ -4,7 +4,8 @@
 
 import {
   encodeFunctionData,
-  maxUint256,
+  isAddress,
+  isHex,
   type Address,
   type Hex,
 } from "viem";
@@ -38,7 +39,7 @@ export async function buildEvmPaymentTransaction(
 ): Promise<EvmPaymentTransaction> {
   assertQuoteValid(params.quote);
 
-  const chain = getChain(params.quote.fromChainId);
+  getChain(params.quote.fromChainId); // throws for an unsupported chain
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) headers["x-api-key"] = apiKey;
 
@@ -65,12 +66,25 @@ export async function buildEvmPaymentTransaction(
     throw new Error(`Bridge tx build failed (${res.status}): ${body}`);
   }
 
-  const data: PumpBridgeTxResponse = await res.json();
+  const data = (await res.json()) as Partial<PumpBridgeTxResponse>;
+  if (
+    typeof data.to !== "string" ||
+    !isAddress(data.to) ||
+    typeof data.data !== "string" ||
+    !isHex(data.data) ||
+    typeof data.value !== "string" ||
+    (data.approvalSpender !== undefined &&
+      (typeof data.approvalSpender !== "string" || !isAddress(data.approvalSpender)))
+  ) {
+    throw new Error("Bridge tx build returned a malformed transaction");
+  }
+  const value = BigInt(data.value);
+  if (value < 0n) throw new Error("Bridge tx build returned a negative value");
 
   const bridge: EvmPaymentTransaction["bridge"] = {
-    to: data.to as Address,
-    data: data.data as Hex,
-    value: BigInt(data.value),
+    to: data.to,
+    data: data.data,
+    value,
     chainId: params.quote.fromChainId,
   };
 
@@ -79,10 +93,12 @@ export async function buildEvmPaymentTransaction(
     params.quote.fromToken !== "native" &&
     data.approvalSpender
   ) {
+    // Approve exactly the quoted amount: the spender comes from an HTTP
+    // response, so it must never receive an unlimited allowance.
     const approvalData = encodeFunctionData({
       abi: ERC20_ABI,
       functionName: "approve",
-      args: [data.approvalSpender as Address, maxUint256],
+      args: [data.approvalSpender, params.quote.fromAmount],
     });
 
     return {
@@ -132,7 +148,11 @@ export async function checkAllowance(
     body: JSON.stringify(body),
   });
 
-  const json: { result: Hex } = await res.json();
+  if (!res.ok) throw new Error(`Allowance check failed (${res.status})`);
+  const json = (await res.json()) as { result?: unknown; error?: { message?: string } };
+  if (typeof json.result !== "string" || !isHex(json.result)) {
+    throw new Error(`Allowance check failed: ${json.error?.message ?? "no result"}`);
+  }
   const allowance = BigInt(json.result);
   return allowance >= amount;
 }

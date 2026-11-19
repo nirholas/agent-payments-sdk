@@ -4,7 +4,6 @@
 
 import {
   encodeFunctionData,
-  maxUint256,
   type Address,
   type Hex,
 } from "viem";
@@ -75,7 +74,8 @@ export class EvmAgentOffline {
 
   /**
    * Build the acceptPayment transaction bundle.
-   * Returns an optional ERC-20 approval + the main payment tx.
+   * Returns an optional ERC-20 approval for exactly `params.amount` + the main
+   * payment tx.
    *
    * For native currency (ETH/BNB/AVAX), pass currencyToken as "native".
    * The value field on the tx will be set to the payment amount.
@@ -111,7 +111,9 @@ export class EvmAgentOffline {
       data: encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [this.contractAddress, maxUint256],
+        // Exactly this payment: an unlimited allowance would let the contract
+        // (an address the caller supplies) move the payer's whole balance later.
+        args: [this.contractAddress, params.amount],
       }),
       value: 0n,
       chainId: this.chainId,

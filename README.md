@@ -98,7 +98,7 @@ The legacy module is also exported under the `legacyAgentPayments` namespace fro
 
 `EvmAgentOffline` builds unsigned EVM transactions; `EvmAgent` adds RPC reads. Exports come from [src/evm/index.ts](src/evm/index.ts).
 
-> **No AgentPayments contract is deployed on any of the six chains yet.** Every entry in `EVM_CHAINS` carries `agentPayments: 0x0000...0000`. The constructors therefore require an explicit contract address and throw a descriptive error without one, rather than building an `approve(0x0, maxUint256)` and a payment call to the zero address. Check with `isAgentPaymentsDeployed(chainId)` before assuming a chain is usable.
+> **No AgentPayments contract is deployed on any of the six chains yet.** Every entry in `EVM_CHAINS` carries `agentPayments: 0x0000...0000`. The constructors therefore require an explicit contract address and throw a descriptive error without one, rather than building an approval for, and a payment call to, the zero address. ERC-20 approvals cover exactly the payment amount, never an unlimited allowance. Check with `isAgentPaymentsDeployed(chainId)` before assuming a chain is usable.
 
 `buildAcceptPaymentTx` takes the parameters and the payer as **two separate arguments**, and returns a bundle of `{ approval?, tx }`. The currency field is named `currencyToken` and accepts `"native"` for ETH/BNB/AVAX.
 

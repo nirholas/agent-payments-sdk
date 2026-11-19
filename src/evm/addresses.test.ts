@@ -3,7 +3,7 @@
 // All rights reserved.
 
 import { describe, expect, it } from "vitest";
-import type { Address } from "viem";
+import { decodeFunctionData, type Address } from "viem";
 import {
   EVM_CHAINS,
   SUPPORTED_CHAIN_IDS,
@@ -12,6 +12,7 @@ import {
   resolveAgentPaymentsAddress,
 } from "./addresses.js";
 import { EvmAgentOffline } from "./EvmAgentOffline.js";
+import { ERC20_ABI } from "./abi.js";
 
 const DEPLOYMENT = "0x1111111111111111111111111111111111111111" as Address;
 
@@ -90,5 +91,23 @@ describe("EvmAgentOffline construction", () => {
     );
     expect(bundle.tx.to).toBe(DEPLOYMENT);
     expect(bundle.approval?.data).toContain(DEPLOYMENT.slice(2).toLowerCase());
+  });
+
+  it("approves exactly the payment amount, not an unlimited allowance", () => {
+    const agent = new EvmAgentOffline(agentToken, 8453, DEPLOYMENT);
+    const bundle = agent.buildAcceptPaymentTx(
+      {
+        agentToken,
+        currencyToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as Address,
+        amount: 1_000_000n,
+        memo: 1n,
+        startTime: 0n,
+        endTime: 600n,
+      },
+      "0x0000000000000000000000000000000000000001" as Address,
+    );
+    const { functionName, args } = decodeFunctionData({ abi: ERC20_ABI, data: bundle.approval!.data });
+    expect(functionName).toBe("approve");
+    expect(args).toEqual([DEPLOYMENT, 1_000_000n]);
   });
 });
