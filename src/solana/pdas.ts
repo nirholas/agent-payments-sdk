@@ -90,8 +90,8 @@ export function getInvoiceIdPDA(
       currencyMint.toBuffer(),
       amount.toArrayLike(Buffer, "le", 8),
       memo.toArrayLike(Buffer, "le", 8),
-      startTime.toArrayLike(Buffer, "le", 8),
-      endTime.toArrayLike(Buffer, "le", 8),
+      startTime.toTwos(64).toArrayLike(Buffer, "le", 8),
+      endTime.toTwos(64).toArrayLike(Buffer, "le", 8),
     ],
     PROGRAM_ID,
   );

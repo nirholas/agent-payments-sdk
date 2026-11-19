@@ -285,3 +285,47 @@ describe("PumpAgentOffline.buildJupiterSwapData (static)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("PumpAgentOffline.buildAcceptPaymentInstructions integer handling", () => {
+  const mint = Keypair.generate().publicKey;
+  const user = Keypair.generate().publicKey;
+  const base = {
+    user,
+    currencyMint: USDC_MINT,
+    amount: "1000000",
+    startTime: 1_700_000_000,
+    endTime: 1_700_000_300,
+  };
+
+  it("encodes a u64 memo above 2^53 exactly", async () => {
+    const memo = "17636123456789000123";
+    const ixs = await PumpAgentOffline.load(mint).buildAcceptPaymentInstructions({
+      ...base,
+      memo,
+    });
+    const accept = ixs[ixs.length - 1];
+    // data = discriminator(8) | amount u64 | memo u64 | startTime i64 | endTime i64
+    expect(accept.data.readBigUInt64LE(8)).toBe(1_000_000n);
+    expect(accept.data.readBigUInt64LE(16)).toBe(BigInt(memo));
+    expect(accept.data.readBigInt64LE(24)).toBe(1_700_000_000n);
+  });
+
+  it("rejects a negative amount instead of encoding its magnitude", async () => {
+    await expect(
+      PumpAgentOffline.load(mint).buildAcceptPaymentInstructions({
+        ...base,
+        amount: "-5",
+        memo: 1,
+      }),
+    ).rejects.toThrow(RangeError);
+  });
+
+  it("rejects a memo number that has already lost precision", async () => {
+    await expect(
+      PumpAgentOffline.load(mint).buildAcceptPaymentInstructions({
+        ...base,
+        memo: 9007199254740993,
+      }),
+    ).rejects.toThrow(RangeError);
+  });
+});

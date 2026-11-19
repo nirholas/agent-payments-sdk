@@ -16,6 +16,7 @@ import { BN, EventParser } from "@coral-xyz/anchor";
 
 import { PumpAgentOffline, resolveTokenProgramForMint } from "./PumpAgentOffline";
 import { getPumpProgramWithFallback } from "./program";
+import { toI64BN, toU64BN, type IntegerInput } from "./integers";
 import {
   getBuybackAuthorityPDA,
   getGlobalConfigPDA,
@@ -374,19 +375,27 @@ export class PumpAgent extends PumpAgentOffline {
 
   // ─── Invoice Validation ─────────────────────────────────────────────────
 
+  /**
+   * Check whether `user` has paid the invoice identified by
+   * (mint, currency, amount, memo, startTime, endTime).
+   *
+   * `amount` and `memo` are u64 values: pass them as a bigint, decimal string
+   * or BN when they can exceed `Number.MAX_SAFE_INTEGER`. A `number` that is not
+   * a safe integer throws instead of being rounded to a different invoice.
+   */
   async validateInvoicePayment(params: {
     user: PublicKey;
     currencyMint: PublicKey;
-    amount: number;
-    memo: number;
-    startTime: number;
-    endTime: number;
+    amount: IntegerInput;
+    memo: IntegerInput;
+    startTime: IntegerInput;
+    endTime: IntegerInput;
   }): Promise<boolean> {
     const { user, currencyMint } = params;
-    const amount = new BN(params.amount);
-    const memo = new BN(params.memo);
-    const startTime = new BN(params.startTime);
-    const endTime = new BN(params.endTime);
+    const amount = toU64BN(params.amount, "amount");
+    const memo = toU64BN(params.memo, "memo");
+    const startTime = toI64BN(params.startTime, "startTime");
+    const endTime = toI64BN(params.endTime, "endTime");
 
     const [invoiceId] = getInvoiceIdPDA(
       this.mint,

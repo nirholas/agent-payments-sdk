@@ -181,3 +181,60 @@ describe("PumpAgent transaction history", () => {
     expect(getTransaction).toHaveBeenCalledWith("sig1", { maxSupportedTransactionVersion: 1 });
   });
 });
+
+describe("PumpAgent.validateInvoicePayment", () => {
+  // A memo of this size is what generateMemo-style helpers produce. As a
+  // `number` it cannot be represented, and `new BN(number)` used to throw.
+  const memo = "17636123456789000123";
+
+  it("compares u64 memos exactly instead of rounding them", async () => {
+    const mint = Keypair.generate().publicKey;
+    const user = Keypair.generate().publicKey;
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          user: user.toBase58(),
+          tokenized_agent_mint: mint.toBase58(),
+          currency_mint: USDC_MINT.toBase58(),
+          amount: "1000000",
+          memo,
+          start_time: "1700000000",
+          end_time: "1700000300",
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const agent = new PumpAgent(mint, "mainnet", {} as import("@solana/web3.js").Connection);
+      const params = {
+        user,
+        currencyMint: USDC_MINT,
+        amount: 1_000_000n,
+        startTime: 1_700_000_000,
+        endTime: 1_700_000_300,
+      };
+      await expect(agent.validateInvoicePayment({ ...params, memo })).resolves.toBe(true);
+      // One unit off must not validate.
+      await expect(
+        agent.validateInvoicePayment({ ...params, memo: BigInt(memo) - 1n }),
+      ).resolves.toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("throws on a memo number that is not a safe integer", async () => {
+    const agent = new PumpAgent(Keypair.generate().publicKey, "mainnet", {} as import("@solana/web3.js").Connection);
+    await expect(
+      agent.validateInvoicePayment({
+        user: Keypair.generate().publicKey,
+        currencyMint: USDC_MINT,
+        amount: 1,
+        memo: Number(memo),
+        startTime: 0,
+        endTime: 1,
+      }),
+    ).rejects.toThrow(RangeError);
+  });
+});

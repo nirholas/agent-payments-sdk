@@ -23,6 +23,7 @@ import { BN, type Program } from "@coral-xyz/anchor";
 
 import type { PumpAgentPayments as PumpAgentPaymentsIDL } from "./idl/pump_agent_payments";
 import { getPumpProgramWithFallback } from "./program";
+import { toBigIntStrict, toI64BN, toU64BN } from "./integers";
 import {
   getBondingCurvePDA,
   getBuybackAuthorityPDA,
@@ -105,10 +106,6 @@ export async function resolveTokenProgramForMint(
   if (!info) return TOKEN_PROGRAM_ID;
   if (info.owner.equals(TOKEN_2022_PROGRAM_ID)) return TOKEN_2022_PROGRAM_ID;
   return TOKEN_PROGRAM_ID;
-}
-
-function toBN(value: bigint | number | string): BN {
-  return new BN(value.toString());
 }
 
 export class PumpAgentOffline {
@@ -287,10 +284,10 @@ export class PumpAgentOffline {
       user,
       userTokenAccount,
       currencyMint,
-      amount: toBN(params.amount),
-      memo: toBN(params.memo),
-      startTime: toBN(params.startTime),
-      endTime: toBN(params.endTime),
+      amount: toU64BN(params.amount, "amount"),
+      memo: toU64BN(params.memo, "memo"),
+      startTime: toI64BN(params.startTime, "startTime"),
+      endTime: toI64BN(params.endTime, "endTime"),
       tokenProgram: params.tokenProgram,
     });
 
@@ -318,7 +315,7 @@ export class PumpAgentOffline {
         SystemProgram.transfer({
           fromPubkey: user,
           toPubkey: userTokenAccount,
-          lamports: BigInt(params.amount.toString()),
+          lamports: toBigIntStrict(params.amount, "amount"),
         }),
         createSyncNativeInstruction(userTokenAccount),
         acceptIx,

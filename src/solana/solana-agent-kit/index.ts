@@ -20,6 +20,7 @@ import { NATIVE_MINT, getAssociatedTokenAddressSync } from "@solana/spl-token";
 
 import { PumpAgent } from "../PumpAgent";
 import { PumpAgentOffline } from "../PumpAgentOffline";
+import type { IntegerInput } from "../integers";
 import type { Plugin, SolanaAgentKitLike } from "./types";
 import { allActions } from "./actions";
 
@@ -74,10 +75,10 @@ async function validateInvoicePayment(
   mint: PublicKey,
   user: PublicKey,
   currencyMint: PublicKey,
-  amount: number,
-  memo: number,
-  startTime: number,
-  endTime: number,
+  amount: IntegerInput,
+  memo: IntegerInput,
+  startTime: IntegerInput,
+  endTime: IntegerInput,
 ) {
   const pump = new PumpAgent(mint, "mainnet", agent.connection);
   return pump.validateInvoicePayment({

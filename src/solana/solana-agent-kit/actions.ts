@@ -274,10 +274,10 @@ export const validateInvoiceAction: Action = {
     const valid = await pumpAgent.validateInvoicePayment({
       user: pk(input.user),
       currencyMint: pk(input.currencyMint),
-      amount: Number(input.amount),
-      memo: Number(input.memo),
-      startTime: Number(input.startTime),
-      endTime: Number(input.endTime),
+      amount: input.amount,
+      memo: input.memo,
+      startTime: input.startTime,
+      endTime: input.endTime,
     });
 
     return { valid };

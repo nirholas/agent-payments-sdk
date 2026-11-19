@@ -50,6 +50,7 @@ export {
   resolveTokenProgramForMint,
 } from "./PumpAgentOffline";
 export { PumpAgent } from "./PumpAgent";
+export type { IntegerInput } from "./integers";
 
 // Error types
 export {
