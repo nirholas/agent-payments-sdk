@@ -144,12 +144,14 @@
     "build:prod": "tsup --minify",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src eslint.config.js tsup.config.ts vitest.config.ts",
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "watch:usdc": "node scripts/usdc-whitelist-monitor.mjs",
-    "check:whitelist": "node scripts/check-whitelist.mjs"
+    "check:whitelist": "node scripts/check-whitelist.mjs",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "keywords": [
     "solana",
@@ -182,14 +184,17 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@pump-fun/agent-payments-sdk-legacy": "npm:@pump-fun/agent-payments-sdk@1.0.7",
     "@types/bn.js": "^5.2.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.5",
+    "bigint-buffer": "file:vendor/bigint-buffer",
+    "eslint": "^10.15.0",
     "tsup": "^8.3.5",
     "typescript": "^5.7.3",
-    "vitest": "^4.1.5",
-    "bigint-buffer": "file:vendor/bigint-buffer"
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^4.1.5"
   },
   "overrides": {
     "@vitest/mocker@>=4.1.11 <4.1.12": "^4.1.12",
