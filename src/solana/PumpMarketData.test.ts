@@ -12,7 +12,7 @@
 
 import { BN } from "@coral-xyz/anchor";
 import { NATIVE_MINT } from "@solana/spl-token";
-import { clusterApiUrl, Connection, PublicKey, type AccountInfo } from "@solana/web3.js";
+import { clusterApiUrl, Connection, Keypair, PublicKey, type AccountInfo } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PumpMarketData } from "./PumpMarketData";
@@ -252,5 +252,75 @@ describe("PumpMarketData — unit: graduation progress", () => {
 
     const price = await market.getPrice(new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"));
     expect(price.graduationProgressPct).toBe(100);
+  });
+});
+
+describe("PumpMarketData.subscribe error handling", () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ solana: { usd: 100 } }),
+    } as Response);
+  });
+
+  function captureListener(connection: Connection) {
+    return () =>
+      (vi.mocked(connection.onAccountChange).mock.calls[0]![1] as (info: AccountInfo<Buffer>) => void);
+  }
+
+  it("routes a throwing callback to onError instead of an unhandled rejection", async () => {
+    const connection = makeConnection([]);
+    const market = new PumpMarketData(connection);
+    const boom = new Error("callback failed");
+    const onError = vi.fn();
+    market.subscribe(PublicKey.default, () => { throw boom; }, onError);
+
+    const buf = makeCurveBuffer({
+      virtualTokenReserves: 1_000_000_000_000n,
+      virtualQuoteReserves: 30_000_000_000n,
+      realTokenReserves: 0n,
+      realQuoteReserves: 0n,
+      tokenTotalSupply: 1_000_000_000_000_000n,
+    });
+    captureListener(connection)()(fakeAccountInfo(buf));
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(boom));
+  });
+
+  it("skips an undecodable update when no onError is given", async () => {
+    const connection = makeConnection([]);
+    const market = new PumpMarketData(connection);
+    const callback = vi.fn();
+    market.subscribe(PublicKey.default, callback);
+    captureListener(connection)()(fakeAccountInfo(Buffer.alloc(4)));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("subscribeMultiple unsubscribes every listener", () => {
+    const connection = makeConnection([]);
+    const market = new PumpMarketData(connection);
+    const unsubscribe = market.subscribeMultiple(
+      [PublicKey.default, new PublicKey("So11111111111111111111111111111111111111112")],
+      vi.fn(),
+    );
+    unsubscribe();
+    expect(connection.removeAccountChangeListener).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("PumpMarketData.getPrices batching", () => {
+  beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ solana: { usd: 100 } }),
+    } as Response);
+  });
+
+  it("splits more than 100 mints across getMultipleAccountsInfo calls", async () => {
+    const getMultipleAccountsInfo = vi.fn(async (keys: PublicKey[]) => keys.map(() => null));
+    const market = new PumpMarketData({ getMultipleAccountsInfo } as unknown as Connection);
+    const mints = Array.from({ length: 250 }, () => Keypair.generate().publicKey);
+    await market.getPrices(mints);
+    expect(getMultipleAccountsInfo.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 50]);
   });
 });

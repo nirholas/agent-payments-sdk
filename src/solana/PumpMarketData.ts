@@ -42,6 +42,8 @@ const V1_CURVE_MAX_SIZE = 49;
 const GRADUATION_THRESHOLD = new BN(85_000_000_000);
 
 const SOL_PRICE_CACHE_MS = 60_000;
+/** getMultipleAccountsInfo accepts at most 100 keys per call. */
+const MAX_ACCOUNTS_PER_RPC = 100;
 const COINGECKO_SOL_URL =
   "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd";
 
@@ -78,6 +80,11 @@ function quoteDecimalsFor(quoteMint: PublicKey): number {
   return isLegacyQuoteMint(quoteMint) ? SOL_DECIMALS : USDC_DECIMALS;
 }
 
+/** Float approximation of a BN; unlike toNumber() it never throws above 2^53. */
+function approx(value: BN): number {
+  return Number(value.toString());
+}
+
 function computeCoinPrice(
   mint: PublicKey,
   info: AccountInfo<Buffer>,
@@ -100,9 +107,9 @@ function computeCoinPrice(
   const priceQuote =
     curve.virtualTokenReserves.isZero()
       ? 0
-      : curve.virtualQuoteReserves.toNumber() /
+      : approx(curve.virtualQuoteReserves) /
         Math.pow(10, quoteDecimals) /
-        (curve.virtualTokenReserves.toNumber() / Math.pow(10, COIN_DECIMALS));
+        (approx(curve.virtualTokenReserves) / Math.pow(10, COIN_DECIMALS));
 
   const quotePriceUsd = isSOL ? solPriceUsd : 1.0;
   const priceUsd = priceQuote * quotePriceUsd;
@@ -114,15 +121,15 @@ function computeCoinPrice(
     virtualQuoteReserves: curve.virtualQuoteReserves,
     virtualTokenReserves: curve.virtualTokenReserves,
   });
-  const marketCapQuote = mcRaw.toNumber() / Math.pow(10, quoteDecimals);
+  const marketCapQuote = approx(mcRaw) / Math.pow(10, quoteDecimals);
   const marketCapUsd = marketCapQuote * quotePriceUsd;
 
   const graduationProgressPct = GRADUATION_THRESHOLD.isZero()
     ? 0
     : Math.min(
         100,
-        (curve.realQuoteReserves.toNumber() /
-          GRADUATION_THRESHOLD.toNumber()) *
+        (approx(curve.realQuoteReserves) /
+          approx(GRADUATION_THRESHOLD)) *
           100,
       );
 
@@ -164,10 +171,15 @@ export class PumpMarketData {
     if (mints.length === 0) return new Map();
 
     const bcAddrs = mints.map((m) => bondingCurvePda(m));
-    const [infos, solPrice] = await Promise.all([
-      this.connection.getMultipleAccountsInfo(bcAddrs),
+    const chunks: PublicKey[][] = [];
+    for (let i = 0; i < bcAddrs.length; i += MAX_ACCOUNTS_PER_RPC) {
+      chunks.push(bcAddrs.slice(i, i + MAX_ACCOUNTS_PER_RPC));
+    }
+    const [chunkInfos, solPrice] = await Promise.all([
+      Promise.all(chunks.map((c) => this.connection.getMultipleAccountsInfo(c))),
       this.getSolPrice(),
     ]);
+    const infos = chunkInfos.flat();
 
     const result = new Map<string, CoinPrice>();
     for (let i = 0; i < mints.length; i++) {
@@ -196,8 +208,11 @@ export class PumpMarketData {
     try {
       const resp = await fetch(COINGECKO_SOL_URL);
       if (!resp.ok) throw new Error(`CoinGecko HTTP ${resp.status}`);
-      const data = (await resp.json()) as { solana: { usd: number } };
-      const price = data.solana.usd;
+      const data = (await resp.json()) as { solana?: { usd?: unknown } };
+      const price = data.solana?.usd;
+      if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) {
+        throw new Error("CoinGecko returned no SOL price");
+      }
       this.solPriceCache = { price, ts: now };
       return price;
     } catch {
@@ -209,44 +224,53 @@ export class PumpMarketData {
 
   // ── subscribe ───────────────────────────────────────────────────────────────
 
-  /** Subscribe to real-time price updates for a single mint. Returns unsubscribe fn. */
+  /**
+   * Subscribe to real-time price updates for a single mint. Returns unsubscribe fn.
+   *
+   * An update that fails to decode, or a callback that throws, is passed to
+   * `onError` when given and otherwise skipped; it never becomes an unhandled
+   * promise rejection.
+   */
   subscribe(
     mint: PublicKey,
     callback: (price: CoinPrice) => void,
+    onError?: (error: unknown) => void,
   ): () => void {
     const bcAddr = bondingCurvePda(mint);
     const id = this.connection.onAccountChange(bcAddr, (info) => {
-      void this.getSolPrice().then((solPrice) => {
-        const price = computeCoinPrice(
-          mint,
-          info as AccountInfo<Buffer>,
-          solPrice,
-        );
-        callback(price);
-      });
+      this.getSolPrice()
+        .then((solPrice) => {
+          const price = computeCoinPrice(
+            mint,
+            info as AccountInfo<Buffer>,
+            solPrice,
+          );
+          callback(price);
+        })
+        .catch((err: unknown) => onError?.(err));
     });
-    return () => void this.connection.removeAccountChangeListener(id);
+    return () => this.removeListener(id, onError);
   }
 
   /** Subscribe to real-time price updates for multiple mints. Returns unsubscribe fn. */
   subscribeMultiple(
     mints: PublicKey[],
     callback: (prices: Map<string, CoinPrice>) => void,
+    onError?: (error: unknown) => void,
   ): () => void {
-    const unsubs = mints.map((mint) => {
-      const bcAddr = bondingCurvePda(mint);
-      const id = this.connection.onAccountChange(bcAddr, (info) => {
-        void this.getSolPrice().then((solPrice) => {
-          const price = computeCoinPrice(
-            mint,
-            info as AccountInfo<Buffer>,
-            solPrice,
-          );
-          callback(new Map([[mint.toBase58(), price]]));
-        });
-      });
-      return () => void this.connection.removeAccountChangeListener(id);
-    });
+    const unsubs = mints.map((mint) =>
+      this.subscribe(
+        mint,
+        (price) => callback(new Map([[mint.toBase58(), price]])),
+        onError,
+      ),
+    );
     return () => unsubs.forEach((u) => u());
+  }
+
+  private removeListener(id: number, onError?: (error: unknown) => void): void {
+    this.connection
+      .removeAccountChangeListener(id)
+      .catch((err: unknown) => onError?.(err));
   }
 }
