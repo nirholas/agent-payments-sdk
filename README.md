@@ -190,11 +190,15 @@ npm ci                 # install from the committed package-lock.json
 npm run build          # tsup, dual ESM + CJS into dist/
 npm run build:prod     # tsup --minify
 npm run typecheck      # tsc --noEmit
+npm run lint           # eslint, including type-aware promise checks
 npm test               # vitest run
+npm run check          # typecheck + lint + test + build
 npm run test:watch     # vitest
 npm run test:coverage  # vitest run --coverage
 npm run clean          # rm -rf dist
 ```
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs typecheck, lint, tests and build on Node 20, 22 and 24, checks the tarball's file list, and imports every entry point from the packed tarball as ESM and CJS.
 
 Tests run on [vitest](https://vitest.dev) and live next to the sources they cover (`src/**/*.test.ts`), plus `src/solana/legacy-agent-payments/__tests__/`. Coverage is scoped to the legacy module per [vitest.config.ts](vitest.config.ts).
 

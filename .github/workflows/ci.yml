@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - name: Check the published file list
+        run: |
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const files = require("./pack.json")[0].files.map((f) => f.path);
+            const stray = files.filter((p) => !/^(dist\/|README\.md$|LICENSE$|package\.json$)/.test(p));
+            if (stray.length) { console.error("Unexpected files in the tarball:", stray); process.exit(1); }
+            console.log(files.length + " files");
+          '
+
+      - name: Import every entry point from the packed tarball
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/nirholas-agent-payments-sdk-*.tgz
+          node -e '
+            const pkg = require("@nirholas/agent-payments-sdk/package.json");
+            const entries = Object.keys(pkg.exports).filter((k) => k !== "./package.json");
+            (async () => {
+              for (const entry of entries) {
+                const id = "@nirholas/agent-payments-sdk" + entry.slice(1);
+                const cjs = require(id);
+                const esm = await import(id);
+                if (!Object.keys(cjs).length || !Object.keys(esm).length) throw new Error("empty entry " + id);
+              }
+              console.log("imported " + entries.length + " entry points as CJS and ESM");
+            })().catch((err) => { console.error(err); process.exit(1); });
+          '

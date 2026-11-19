@@ -42,6 +42,8 @@ npm install
 | build | `npm run build` |
 | test | `npm test` |
 | typecheck | `npm run typecheck` |
+| lint | `npm run lint` |
+| everything CI runs | `npm run check` |
 
 Run the test and lint commands above before you consider a change finished. If a command fails on code you did not touch, say so in your report instead of silently skipping it.
 
