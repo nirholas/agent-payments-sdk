@@ -4,7 +4,7 @@ Operating notes for AI coding agents (Claude Code, Codex, Cursor, Copilot and ot
 
 ## What this repository is
 
-TypeScript SDK for Pump Agent Payments. Owned by [@pump-fun](https://github.com/pump-fun), published as a restricted (private) npm package.
+TypeScript SDK for Pump Agent Payments by [@nirholas](https://github.com/nirholas), published publicly on npm as `@nirholas/agent-payments-sdk`.
 
 - Homepage: https://nirholas.github.io/agent-payments-sdk/
 - Source: https://github.com/nirholas/agent-payments-sdk
