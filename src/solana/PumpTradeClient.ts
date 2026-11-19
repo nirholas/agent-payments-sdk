@@ -151,6 +151,40 @@ function lessSlippage(amount: BN, slippagePct: number): BN {
   return amount.muln(10_000 - bps).divn(10_000);
 }
 
+const DEFAULT_SLIPPAGE_PCT = 5;
+
+/** Default the slippage and refuse values the program would misread. */
+function resolveSlippage(slippagePct: number | undefined): number {
+  const slippage = slippagePct ?? DEFAULT_SLIPPAGE_PCT;
+  if (!Number.isFinite(slippage) || slippage < 0 || slippage > 100) {
+    throw new RangeError(`slippagePct must be between 0 and 100, got ${slippagePct}`);
+  }
+  return slippage;
+}
+
+/**
+ * Refuse zero and negative amounts. bn.js serializes a negative BN as its
+ * magnitude, so `-1e9` would otherwise become a real 1e9 trade.
+ */
+function assertPositive(amount: BN, name: string): void {
+  if (!BN.isBN(amount) || amount.lten(0)) {
+    throw new RangeError(`${name} must be a positive BN, got ${String(amount)}`);
+  }
+}
+
+/**
+ * The slippage allowance @pump-fun/pump-sdk encodes into v2 instructions:
+ * `amount * floor(slippagePct * 10) / 1000`. Quotes use the same term so the
+ * bounds they report are the bounds the transaction enforces.
+ */
+function sdkSlippageAllowance(amount: BN, slippagePct: number): BN {
+  return amount.mul(new BN(Math.floor(slippagePct * 10))).div(new BN(1000));
+}
+
+/** Account indexes shared by buy_v2, sell_v2 and buy_exact_quote_in_v2 (see idl/pump.json). */
+const V2_FEE_RECIPIENT_INDEX = 6;
+const V2_BUYBACK_FEE_RECIPIENT_INDEX = 8;
+
 /** Pick a buyback wallet from the live `Global.buybackFeeRecipients` list. */
 function pickGlobalBuybackFeeRecipient(global: {
   buybackFeeRecipients: PublicKey[];
@@ -167,9 +201,14 @@ const MULTI_HOP_CU_PER_HOP = 200_000;
 const MULTI_HOP_CU_BASE = 100_000;
 const MAX_COMPUTE_UNITS = 1_400_000;
 
+/** Price-impact resolution: percent with six decimals. */
+const IMPACT_SCALE = 1_000_000;
+
+/** `quoteAmount` as a percentage of `marketCap`, in BN math (no 2^53 overflow). */
 function computePriceImpactPct(quoteAmount: BN, marketCap: BN): number {
   if (marketCap.isZero()) return 0;
-  return clamp((quoteAmount.toNumber() / marketCap.toNumber()) * 100, 0, 100);
+  const scaled = quoteAmount.mul(new BN(100 * IMPACT_SCALE)).div(marketCap);
+  return scaled.gte(new BN(100 * IMPACT_SCALE)) ? 100 : scaled.toNumber() / IMPACT_SCALE;
 }
 
 // ─── PumpTradeClient ──────────────────────────────────────────────────────────
@@ -207,7 +246,8 @@ export class PumpTradeClient {
     slippagePct?: number;
   }): Promise<BuyQuote> {
     const { mint, quoteAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(quoteAmount, "quoteAmount");
+    const slippage = resolveSlippage(params.slippagePct);
 
     const {
       global,
@@ -227,8 +267,8 @@ export class PumpTradeClient {
       global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens, quoteMint,
     });
 
-    const maxQuoteCost = new BN(
-      Math.ceil(preciseQuoteAmount.toNumber() * (1 + slippage / 100)),
+    const maxQuoteCost = preciseQuoteAmount.add(
+      sdkSlippageAllowance(preciseQuoteAmount, slippage),
     );
 
     const marketCap = bondingCurveMarketCap({
@@ -257,7 +297,8 @@ export class PumpTradeClient {
     slippagePct?: number;
   }): Promise<SellQuote> {
     const { mint, baseAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(baseAmount, "baseAmount");
+    const slippage = resolveSlippage(params.slippagePct);
 
     const {
       global,
@@ -273,8 +314,8 @@ export class PumpTradeClient {
       global, feeConfig, mintSupply, bondingCurve, amount: baseAmount,
     });
 
-    const minQuoteOut = new BN(
-      Math.max(0, Math.floor(expectedQuoteOut.toNumber() * (1 - slippage / 100))),
+    const minQuoteOut = expectedQuoteOut.sub(
+      sdkSlippageAllowance(expectedQuoteOut, slippage),
     );
 
     const marketCap = bondingCurveMarketCap({
@@ -303,7 +344,8 @@ export class PumpTradeClient {
     slippagePct?: number;
   }): Promise<BuyResult> {
     const { mint, user, quoteAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(quoteAmount, "quoteAmount");
+    const slippage = resolveSlippage(params.slippagePct);
 
     const baseTokenProgram = await this._baseTokenProgram(mint);
     const userAta = getAssociatedTokenAddressSync(mint, user, true, baseTokenProgram);
@@ -344,10 +386,6 @@ export class PumpTradeClient {
       global, feeConfig, mintSupply, bondingCurve, amount: expectedBaseTokens, quoteMint,
     });
 
-    const mayhemMode = bondingCurve.isMayhemMode ?? false;
-    const feeRecipient = pickFeeRecipient(global, mayhemMode);
-    const buybackFeeRecipient = pickBuybackFeeRecipient();
-
     const instructions = await PUMP_SDK.buyV2Instructions({
       global,
       bondingCurveAccountInfo: bcInfo,
@@ -362,14 +400,17 @@ export class PumpTradeClient {
       quoteTokenProgram,
     });
 
+    // The SDK picks both fee recipients itself; report the ones it encoded.
+    const buyIx = instructions[instructions.length - 1]!;
+
     return {
       instructions,
       quoteMint,
       quoteTokenProgram,
       expectedBaseTokens,
       preciseQuoteAmount,
-      feeRecipient,
-      buybackFeeRecipient,
+      feeRecipient: buyIx.keys[V2_FEE_RECIPIENT_INDEX]!.pubkey,
+      buybackFeeRecipient: buyIx.keys[V2_BUYBACK_FEE_RECIPIENT_INDEX]!.pubkey,
     };
   }
 
@@ -382,7 +423,8 @@ export class PumpTradeClient {
     slippagePct?: number;
   }): Promise<SellResult> {
     const { mint, user, baseAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(baseAmount, "baseAmount");
+    const slippage = resolveSlippage(params.slippagePct);
 
     const baseTokenProgram = await this._baseTokenProgram(mint);
 
@@ -442,6 +484,10 @@ export class PumpTradeClient {
     minBaseOut: BN;
   }): Promise<ExactQuoteResult> {
     const { mint, user, spendableQuoteIn, minBaseOut } = params;
+    assertPositive(spendableQuoteIn, "spendableQuoteIn");
+    if (!BN.isBN(minBaseOut) || minBaseOut.isNeg()) {
+      throw new RangeError(`minBaseOut must be a non-negative BN, got ${String(minBaseOut)}`);
+    }
 
     const baseTokenProgram = await this._baseTokenProgram(mint);
 
@@ -567,7 +613,8 @@ export class PumpTradeClient {
     partialFill?: boolean;
   }): Promise<BuyV3Result> {
     const { mint, user, quoteAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(quoteAmount, "quoteAmount");
+    const slippage = resolveSlippage(params.slippagePct);
     const state = await this._fetchV3BuyState(mint, user);
     const { global, feeConfig, bondingCurve, curveBaseTokenBalance } = state;
     const mintSupply = bondingCurve.tokenTotalSupply;
@@ -629,7 +676,8 @@ export class PumpTradeClient {
     partialFill?: boolean;
   }): Promise<BuyV3Result> {
     const { mint, user, spendableQuoteIn } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(spendableQuoteIn, "spendableQuoteIn");
+    const slippage = resolveSlippage(params.slippagePct);
     const state = await this._fetchV3BuyState(mint, user);
     const { global, feeConfig, bondingCurve, curveBaseTokenBalance } = state;
 
@@ -689,7 +737,8 @@ export class PumpTradeClient {
     slippagePct?: number;
   }): Promise<SellV3Result> {
     const { mint, user, baseAmount } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(baseAmount, "baseAmount");
+    const slippage = resolveSlippage(params.slippagePct);
 
     const baseTokenProgram = await this._baseTokenProgram(mint);
     const { global, feeConfig, bondingCurve, quoteMint, quoteTokenProgram } =
@@ -752,7 +801,8 @@ export class PumpTradeClient {
     addressLookupTables?: AddressLookupTableAccount[];
   }): Promise<MultiHopSwapResult> {
     const { user, path, side, amountIn } = params;
-    const slippage = params.slippagePct ?? 5;
+    assertPositive(amountIn, "amountIn");
+    const slippage = resolveSlippage(params.slippagePct);
     if (path.length < 2) {
       throw new Error("multi-hop path needs at least two mints (input and output).");
     }

@@ -130,10 +130,21 @@ vi.mock("@pump-fun/pump-sdk", async (importOriginal) => {
       currentSolVolume: new BN(1000),
       cashbackEarned: new BN(100),
     })),
-    buyV2Instructions: vi.fn(async () => [
+    // Like the real SDK, choose the fee recipients internally and encode them
+    // at their buy_v2 account positions (6 and 8).
+    buyV2Instructions: vi.fn(async ({ global }: { global: { feeRecipient: PublicKey } }) => [
       {
         programId: new PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"),
-        keys: Array(10).fill({ pubkey: PublicKey.default, isSigner: false, isWritable: false }),
+        keys: Array.from({ length: 10 }, (_, i) => ({
+          pubkey:
+            i === 6
+              ? global.feeRecipient
+              : i === 8
+                ? new PublicKey("5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD")
+                : PublicKey.default,
+          isSigner: false,
+          isWritable: false,
+        })),
         data: Buffer.from([184, 23, 238, 97, 103, 197, 211, 61, ...Array(16).fill(0)]),
       },
     ]),
@@ -478,6 +489,18 @@ describe("PumpTradeClient", () => {
       );
       expect(pool).toContain(result.feeRecipient.toBase58());
     });
+
+    it("reports the fee recipients the built instruction actually uses", async () => {
+      const client = new PumpTradeClient(makeConnection());
+      const result = await client.buildBuyInstructions({
+        mint: FAKE_MINT,
+        user: FAKE_USER,
+        quoteAmount: new BN(1_000_000_000),
+      });
+      const buyIx = result.instructions[result.instructions.length - 1]!;
+      expect(result.feeRecipient.equals(buyIx.keys[6]!.pubkey)).toBe(true);
+      expect(result.buybackFeeRecipient.equals(buyIx.keys[8]!.pubkey)).toBe(true);
+    });
   });
 
   // ── buildSellInstructions ──────────────────────────────────────────────────
@@ -678,5 +701,53 @@ describe("PumpTradeClient", () => {
       expect(e.name).toBe("InsufficientLiquidityError");
       expect(e.message).toContain("reserves exhausted");
     });
+  });
+});
+
+describe("PumpTradeClient input validation", () => {
+  const client = () => new PumpTradeClient(makeConnection());
+
+  it.each([
+    ["buildSellInstructions", () => client().buildSellInstructions({ mint: FAKE_MINT, user: FAKE_USER, baseAmount: new BN(-1_000_000_000) })],
+    ["buildBuyInstructions", () => client().buildBuyInstructions({ mint: FAKE_MINT, user: FAKE_USER, quoteAmount: new BN(0) })],
+    ["quoteForSell", () => client().quoteForSell({ mint: FAKE_MINT, baseAmount: new BN(-1) })],
+    ["quoteForBuy", () => client().quoteForBuy({ mint: FAKE_MINT, quoteAmount: new BN(-1) })],
+    ["buildBuyExactQuoteInInstructions", () => client().buildBuyExactQuoteInInstructions({ mint: FAKE_MINT, user: FAKE_USER, spendableQuoteIn: new BN(1), minBaseOut: new BN(-1) })],
+    ["buildSellV3Instructions", () => client().buildSellV3Instructions({ mint: FAKE_MINT, user: FAKE_USER, baseAmount: new BN(-5) })],
+  ])("%s rejects a non-positive amount (bn.js would encode its magnitude)", async (_name, run) => {
+    await expect(run()).rejects.toThrow(RangeError);
+  });
+
+  it.each([-1, 101, Number.NaN, Number.POSITIVE_INFINITY])(
+    "rejects slippagePct %s",
+    async (slippagePct) => {
+      await expect(
+        client().quoteForBuy({ mint: FAKE_MINT, quoteAmount: new BN(1_000_000_000), slippagePct }),
+      ).rejects.toThrow(RangeError);
+    },
+  );
+});
+
+describe("PumpTradeClient quote bounds", () => {
+  // The SDK encodes q ± q * floor(slippagePct * 10) / 1000 into the
+  // instruction; the quote must report exactly that bound.
+  it("maxQuoteCost matches the buy_v2 encoding at fractional slippage", async () => {
+    const quote = await new PumpTradeClient(makeConnection()).quoteForBuy({
+      mint: FAKE_MINT,
+      quoteAmount: new BN(1_000_000_000),
+      slippagePct: 0.25,
+    });
+    const q = quote.preciseQuoteAmount;
+    expect(quote.maxQuoteCost.toString()).toBe(q.add(q.muln(2).divn(1000)).toString());
+  });
+
+  it("minQuoteOut matches the sell_v2 encoding", async () => {
+    const quote = await new PumpTradeClient(makeConnection()).quoteForSell({
+      mint: FAKE_MINT,
+      baseAmount: new BN(10_000_000_000),
+      slippagePct: 10,
+    });
+    const q = quote.expectedQuoteOut;
+    expect(quote.minQuoteOut.toString()).toBe(q.sub(q.muln(100).divn(1000)).toString());
   });
 });

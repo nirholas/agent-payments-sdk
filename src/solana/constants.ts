@@ -32,7 +32,8 @@ export function pickBuybackFeeRecipient(): PublicKey {
 
 /**
  * Pick a regular or reserved (mayhem) fee recipient at random from the
- * Global config pool. Mirrors `getFeeRecipient` in @pump-fun/pump-sdk.
+ * Global config pool, skipping empty (default-key) slots. Mirrors
+ * `getFeeRecipient` in @pump-fun/pump-sdk.
  */
 export function pickFeeRecipient(
   global: {
@@ -43,8 +44,11 @@ export function pickFeeRecipient(
   },
   mayhemMode: boolean,
 ): PublicKey {
-  const pool = mayhemMode
-    ? [global.reservedFeeRecipient, ...global.reservedFeeRecipients]
-    : [global.feeRecipient, ...global.feeRecipients];
+  const primary = mayhemMode ? global.reservedFeeRecipient : global.feeRecipient;
+  const pool = [
+    primary,
+    ...(mayhemMode ? global.reservedFeeRecipients : global.feeRecipients),
+  ].filter((key) => !key.equals(PublicKey.default));
+  if (pool.length === 0) return primary;
   return pool[Math.floor(Math.random() * pool.length)]!;
 }
