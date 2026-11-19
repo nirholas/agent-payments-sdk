@@ -181,10 +181,11 @@ The instruction sequence inside `ixs` for SOL payments is:
 const ok = await agent.validateInvoicePayment({
   user: buyerPubkey,
   currencyMint: NATIVE_MINT,
-  amount: Number(invoice.amount),
-  memo: Number(invoice.memo),
-  startTime: Number(invoice.startTime),
-  endTime: Number(invoice.endTime),
+  // u64 values: pass strings or bigints, never Number() (memos exceed 2^53)
+  amount: invoice.amount,
+  memo: invoice.memo,
+  startTime: invoice.startTime,
+  endTime: invoice.endTime,
 });
 if (!ok) throw new Error("payment not landed yet — retry");
 ```

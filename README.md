@@ -94,6 +94,52 @@ const createIx = await offline.create({
 
 The legacy module is also exported under the `legacyAgentPayments` namespace from the package root and from [src/solana/legacy-agent-payments/index.ts](src/solana/legacy-agent-payments/index.ts). Full reference: [docs/legacy-agent-payments.md](docs/legacy-agent-payments.md).
 
+## x402 on Solana
+
+The `x402` namespace exported from `/solana` implements an HTTP 402 resource server, a facilitator for the `pump-agent` scheme, and a paying `fetch` client.
+
+```ts
+import { Connection } from "@solana/web3.js";
+import { x402 } from "@nirholas/agent-payments-sdk/solana";
+
+const connection = new Connection("https://api.mainnet-beta.solana.com");
+
+// Server: build the price once. Every 402 issues a fresh random-memo invoice.
+const gate = x402.createResourceServer({
+  facilitator: new x402.PumpAgentFacilitator({ connection }),
+  requirements: [
+    x402.buildPumpAgentRequirements({
+      agentMint: "YourAgentMint...",
+      payTo: "YourAgentMint...",
+      amount: "100000", // 0.10 USDC
+    }),
+  ],
+  resource: { url: "/api/inference", description: "One inference call" },
+});
+// app.post("/api/inference", (c) => gate(c.req.raw, () => c.json({ ok: true })));
+
+// Client: pays the 402, then retries with PAYMENT-SIGNATURE.
+const paidFetch = x402.createX402Fetch({
+  connection,
+  payer: wallet.publicKey.toBase58(),
+  signTransaction, // (base64 tx) => base64 signed tx
+  sendTransaction, // (base64 signed tx) => signature
+  approvePayment: (req) =>
+    req.asset === x402.USDC_MAINNET && BigInt(req.amount) <= 100_000n,
+});
+```
+
+What the facilitator checks before a request is served:
+
+- the payload matches every field of a configured requirement (price, asset, `payTo`, agent, invoice window length);
+- the named transaction is confirmed, succeeded, and emitted an `AgentAcceptPaymentEvent` from the agent payments program for exactly that invoice and payer;
+- the invoice is still within `endTime + maxTimeoutSeconds`;
+- the invoice has not been settled before. Settled invoices live in a `SettlementStore`. The default `InMemorySettlementStore` covers one process; behind a load balancer, pass a shared store (for example Redis `SET NX`) as `settlementStore`.
+
+A payment proof is public once it is on-chain, so whoever presents it first is served. Keep invoice windows short.
+
+`createX402Fetch` signs and sends whatever the server asks for unless `approvePayment` says no. Always pass it in production.
+
 ## Quickstart: EVM
 
 `EvmAgentOffline` builds unsigned EVM transactions; `EvmAgent` adds RPC reads. Exports come from [src/evm/index.ts](src/evm/index.ts).
