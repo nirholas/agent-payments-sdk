@@ -79,10 +79,13 @@ export class EvmAgentOffline {
    *
    * For native currency (ETH/BNB/AVAX), pass currencyToken as "native".
    * The value field on the tx will be set to the payment amount.
+   *
+   * @param _payer Not used: the transactions carry no sender. Kept so existing
+   *   two-argument calls keep compiling.
    */
   buildAcceptPaymentTx(
     params: EvmAcceptPaymentParams,
-    payer: Address
+    _payer?: Address
   ): EvmTxBundle {
     const isNative = params.currencyToken === "native";
 

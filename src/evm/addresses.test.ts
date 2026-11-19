@@ -34,7 +34,7 @@ describe("resolveAgentPaymentsAddress", () => {
 
   it("never resolves to the zero address", () => {
     for (const chainId of SUPPORTED_CHAIN_IDS) {
-      let resolved: Address | null = null;
+      let resolved: Address | null;
       try {
         resolved = resolveAgentPaymentsAddress(chainId);
       } catch {

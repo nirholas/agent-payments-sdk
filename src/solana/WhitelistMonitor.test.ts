@@ -151,7 +151,9 @@ describe("WhitelistMonitor", () => {
   it("drops updates buffered during bootstrap that the snapshot already covers", async () => {
     const conn = makeConnection(encodeGlobal([MINT_B]), { snapshotSlot: 500 });
     let release: () => void = () => {};
-    const gate = new Promise<void>((r) => { release = r; });
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
     const snapshot = conn.getAccountInfoAndContext;
     vi.mocked(snapshot).mockImplementationOnce(async () => {
       await gate;

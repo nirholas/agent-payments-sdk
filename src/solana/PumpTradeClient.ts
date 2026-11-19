@@ -491,12 +491,11 @@ export class PumpTradeClient {
 
     const baseTokenProgram = await this._baseTokenProgram(mint);
 
-    // Single batch RPC: Global + FeeConfig + bondingCurve
+    // Single batch RPC: Global + bondingCurve (the program prices this
+    // instruction itself, so FeeConfig is not needed client-side)
     const bcAddr = bondingCurvePda(mint);
-    const [globalInfo, feeConfigInfo, bcInfo] =
-      await this.connection.getMultipleAccountsInfo([
-        GLOBAL_PDA, PUMP_FEE_CONFIG_PDA, bcAddr,
-      ]);
+    const [globalInfo, bcInfo] =
+      await this.connection.getMultipleAccountsInfo([GLOBAL_PDA, bcAddr]);
 
     if (!globalInfo) throw new Error("Global account not found: wrong network?");
     if (!bcInfo) throw new CoinNotFoundError(mint);

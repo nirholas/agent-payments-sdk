@@ -10,7 +10,6 @@
  * Test 5: unit test for graduation progress calculation.
  */
 
-import { BN } from "@coral-xyz/anchor";
 import { NATIVE_MINT } from "@solana/spl-token";
 import { clusterApiUrl, Connection, Keypair, PublicKey, type AccountInfo } from "@solana/web3.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";

@@ -5,6 +5,9 @@
 import type { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import type { z } from "zod";
 
+// The `any`s below mirror solana-agent-kit's own Action interface, so these
+// actions stay assignable to it and handlers can read schema-parsed input.
+
 /**
  * Minimal structural interface compatible with solana-agent-kit's SolanaAgentKit.
  * Uses structural typing so consumers don't need to import SolanaAgentKit directly.
@@ -38,6 +41,6 @@ export interface Action {
 
 export interface Plugin {
   name: string;
-  methods: Record<string, Function>;
+  methods: Record<string, (...args: any[]) => any>;
   actions: Action[];
 }

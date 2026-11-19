@@ -46,10 +46,7 @@ import type {
   UpdateBuybackBpsParams,
   WithdrawParams,
 } from "./types";
-import {
-  CurrencyNotSupportedError,
-  JupiterUnavailableError,
-} from "./errors";
+import { JupiterUnavailableError } from "./errors";
 
 /**
  * USDC mainnet mint — recognised quote currency for pump-fun USDC coins.

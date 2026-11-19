@@ -193,7 +193,7 @@ export interface EventSubscriptionOptions {
 
 export interface EventSubscription {
   /** Stop listening and clean up the WebSocket subscription. */
-  unsubscribe(): void;
+  unsubscribe(): Promise<void>;
 }
 
 /**
@@ -240,7 +240,7 @@ export function subscribeToAgentEvents(
 
   return {
     unsubscribe() {
-      connection.removeOnLogsListener(subId);
+      return connection.removeOnLogsListener(subId);
     },
   };
 }

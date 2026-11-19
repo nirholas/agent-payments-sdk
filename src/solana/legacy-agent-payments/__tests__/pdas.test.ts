@@ -29,7 +29,6 @@ import {
 // is deterministic and independent of which version the bare
 // `@pump-fun/agent-payments-sdk` specifier resolves to elsewhere in the tree
 // (@pump-fun/pump-sdk 2.x depends on it transitively).
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 import * as ref from "@pump-fun/agent-payments-sdk-legacy";
 
 const TEST_MINT = new PublicKey("11111111111111111111111111111112");

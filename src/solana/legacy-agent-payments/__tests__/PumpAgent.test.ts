@@ -1,5 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { BN } from "@coral-xyz/anchor";
+import { describe, expect, it, vi } from "vitest";
 import { PublicKey, Connection } from "@solana/web3.js";
 
 import { LegacyPumpAgent } from "../PumpAgent.js";

@@ -16,7 +16,7 @@ describe("toBigIntStrict", () => {
   });
 
   it("rejects numbers that would silently lose precision", () => {
-    expect(() => toBigIntStrict(9007199254740993, "memo")).toThrow(RangeError);
+    expect(() => toBigIntStrict(Number.MAX_SAFE_INTEGER + 2, "memo")).toThrow(RangeError);
     expect(() => toBigIntStrict(1.5, "amount")).toThrow(RangeError);
     expect(() => toBigIntStrict(Number.NaN, "amount")).toThrow(RangeError);
   });

@@ -23,7 +23,6 @@ import {
 import {
   SOLANA_DEVNET,
   SOLANA_MAINNET,
-  USDC_MAINNET,
   X402_HEADER_PAYMENT_REQUIRED,
   X402_HEADER_PAYMENT_RESPONSE,
   X402_HEADER_PAYMENT_SIGNATURE,
@@ -39,7 +38,6 @@ const ACCEPT_DISCRIMINATOR = IDL.events.find(
 
 const agentMint = Keypair.generate().publicKey;
 const payer = Keypair.generate().publicKey;
-const usdc = new PublicKey(USDC_MAINNET);
 
 function fakeSignature(): string {
   // 64 random bytes rendered in base58 alphabet characters is enough for the

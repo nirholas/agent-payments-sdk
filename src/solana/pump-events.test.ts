@@ -353,7 +353,7 @@ describe("subscribeToPumpEvents", () => {
     };
 
     const received: ParsedPumpEvent[] = [];
-    const sub = subscribeToPumpEvents(
+    subscribeToPumpEvents(
       mockConn,
       { programId: PUMP_BONDING_CURVE_PROGRAM_ID },
       (ev) => received.push(ev),
@@ -394,7 +394,7 @@ describe("subscribeToPumpEvents", () => {
     };
 
     const matchingEvents: ParsedPumpEvent[] = [];
-    const sub = subscribeToPumpEvents(
+    subscribeToPumpEvents(
       mockConn,
       { mint: targetMint },
       (ev) => matchingEvents.push(ev),
@@ -406,7 +406,7 @@ describe("subscribeToPumpEvents", () => {
     expect(matchingEvents.length).toBeGreaterThan(0);
 
     const filteredEvents: ParsedPumpEvent[] = [];
-    const sub2 = subscribeToPumpEvents(
+    subscribeToPumpEvents(
       mockConn,
       { mint: differentMint },
       (ev) => filteredEvents.push(ev),

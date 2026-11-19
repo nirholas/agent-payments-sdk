@@ -324,7 +324,7 @@ describe("PumpAgentOffline.buildAcceptPaymentInstructions integer handling", () 
     await expect(
       PumpAgentOffline.load(mint).buildAcceptPaymentInstructions({
         ...base,
-        memo: 9007199254740993,
+        memo: Number.MAX_SAFE_INTEGER + 2,
       }),
     ).rejects.toThrow(RangeError);
   });

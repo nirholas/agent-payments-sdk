@@ -7,7 +7,6 @@ import {
   isAddress,
   isHex,
   type Address,
-  type Hex,
 } from "viem";
 import type { EvmPaymentParams, EvmPaymentTransaction } from "../types.js";
 import { getChain } from "../chains.js";

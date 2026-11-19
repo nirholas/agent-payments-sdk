@@ -490,7 +490,7 @@ export const getPaymentStatsAction: Action = {
     const stats = await pumpAgent.getPaymentStats(pk(input.currencyMint));
 
     // Convert all BN / bigint fields to strings for JSON serialization
-    const result: Record<string, any> = {};
+    const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(stats as Record<string, unknown>)) {
       if (value instanceof PublicKey) {
         result[key] = value.toBase58();
