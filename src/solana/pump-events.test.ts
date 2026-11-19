@@ -191,6 +191,48 @@ describe("createPumpEventParser", () => {
   it("empty logs array returns empty array", () => {
     expect(parser.parseLogs([])).toHaveLength(0);
   });
+
+  it("ignores pump-shaped events logged by any other program", () => {
+    const { logMessages } = loadFixture("trade-sell");
+    const dataLine = logMessages.find((l) => l.startsWith("Program data: "))!;
+    const spoofer = "Spoof111111111111111111111111111111111111111";
+    const pump = PUMP_BONDING_CURVE_PROGRAM_ID.toBase58();
+    expect(
+      parser.parseLogs([`Program ${spoofer} invoke [1]`, dataLine, `Program ${spoofer} success`]),
+    ).toHaveLength(0);
+    // A data line with no invoke context at all is not attributable either.
+    expect(parser.parseLogs([dataLine])).toHaveLength(0);
+    // After pump returns to its caller, the caller's data lines are not pump's.
+    expect(
+      parser.parseLogs([
+        `Program ${spoofer} invoke [1]`,
+        `Program ${pump} invoke [2]`,
+        `Program ${pump} success`,
+        dataLine,
+        `Program ${spoofer} success`,
+      ]),
+    ).toHaveLength(0);
+    // The same line logged by pump inside a CPI is accepted.
+    expect(
+      parser.parseLogs([
+        `Program ${spoofer} invoke [1]`,
+        `Program ${pump} invoke [2]`,
+        dataLine,
+        `Program ${pump} success`,
+        `Program ${spoofer} success`,
+      ]).map((e) => e.name),
+    ).toEqual(["TradeEvent"]);
+  });
+
+  it("decodes another program's events only when asked to", () => {
+    const { logMessages } = loadFixture("trade-sell");
+    const other = new PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA");
+    const moved = logMessages.map((l) =>
+      l.replaceAll(PUMP_BONDING_CURVE_PROGRAM_ID.toBase58(), other.toBase58()),
+    );
+    expect(parser.parseLogs(moved)).toHaveLength(0);
+    expect(createPumpEventParser({ programId: other }).parseLogs(moved).length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Length tolerance ─────────────────────────────────────────────────────────

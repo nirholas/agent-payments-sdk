@@ -667,23 +667,54 @@ export function decodePumpEvent(bytes: Uint8Array): DecodedPumpEvent | null {
 // ─── Parser ──────────────────────────────────────────────────────────────────
 
 const PROGRAM_DATA_PREFIX = "Program data: ";
+const INVOKE_LINE = /^Program (\S+) invoke \[\d+\]$/;
+const EXIT_LINE = /^Program (\S+) (?:success$|failed)/;
 
 export interface PumpEventParser {
   /**
-   * Decode transaction log messages into typed pump events. Lines not
-   * starting with `Program data: `, with an unknown discriminator, or with
-   * corrupt bytes are skipped. Events logged by any past program version
-   * decode (see the module comment on length tolerance).
+   * Decode transaction log messages into typed pump events. Only
+   * `Program data: ` lines logged while the bonding-curve program is the
+   * executing program count; the call stack is followed through the
+   * `Program <id> invoke [n]` / `success` / `failed` lines. Lines with an
+   * unknown discriminator or corrupt bytes are skipped. Events logged by any
+   * past program version decode (see the module comment on length tolerance).
    */
   parseLogs(logs: string[]): ParsedPumpEvent[];
 }
 
-export function createPumpEventParser(): PumpEventParser {
+export interface PumpEventParserOptions {
+  /** Program whose events to decode (default: PUMP_BONDING_CURVE_PROGRAM_ID). */
+  programId?: PublicKey;
+}
+
+/**
+ * Create a parser for pump bonding-curve events.
+ *
+ * Any program can write a `Program data:` line, and PumpSwap shares several
+ * event names (hence discriminators) with the bonding curve, so data lines
+ * are attributed to the program executing when they were logged and the rest
+ * are dropped.
+ */
+export function createPumpEventParser(
+  options: PumpEventParserOptions = {},
+): PumpEventParser {
+  const programId = (options.programId ?? PUMP_BONDING_CURVE_PROGRAM_ID).toBase58();
   return {
     parseLogs(logs: string[]): ParsedPumpEvent[] {
       const out: ParsedPumpEvent[] = [];
+      const stack: string[] = [];
       for (const line of logs) {
+        const invoke = INVOKE_LINE.exec(line);
+        if (invoke) {
+          stack.push(invoke[1]);
+          continue;
+        }
+        if (EXIT_LINE.test(line)) {
+          stack.pop();
+          continue;
+        }
         if (!line.startsWith(PROGRAM_DATA_PREFIX)) continue;
+        if (stack[stack.length - 1] !== programId) continue;
         const bytes = Buffer.from(line.slice(PROGRAM_DATA_PREFIX.length), "base64");
         const decoded = decodePumpEvent(bytes);
         if (decoded) out.push(decoded);
@@ -730,7 +761,7 @@ export function subscribeToPumpEvents(
 ): PumpEventSubscription {
   const programId = options.programId ?? PUMP_BONDING_CURVE_PROGRAM_ID;
   const commitment = options.commitment ?? "confirmed";
-  const parser = createPumpEventParser();
+  const parser = createPumpEventParser({ programId });
 
   const subId = connection.onLogs(
     programId,
