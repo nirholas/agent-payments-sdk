@@ -61,8 +61,13 @@ export {
 } from "./headers";
 
 // Facilitator
-export type { PumpAgentFacilitatorConfig, PumpAgentRequirementsConfig } from "./facilitator";
+export type {
+  PumpAgentFacilitatorConfig,
+  PumpAgentRequirementsConfig,
+  SettlementStore,
+} from "./facilitator";
 export {
+  InMemorySettlementStore,
   PumpAgentFacilitator,
   buildPumpAgentRequirements,
   createResourceServer,

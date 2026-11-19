@@ -10,7 +10,7 @@
  *   PAYMENT-SIGNATURE  – client → server (retry request)
  *   PAYMENT-RESPONSE   – server → client (200 after settlement)
  *
- * All values are base64-encoded JSON.
+ * All values are base64-encoded UTF-8 JSON.
  */
 
 import type {
@@ -26,28 +26,45 @@ import {
 
 // ─── Encode / Decode primitives ─────────────────────────────────────────────
 
-export function encodePaymentRequired(pr: PaymentRequired): string {
-  return btoa(JSON.stringify(pr));
+/** Base64 of the UTF-8 bytes of `JSON.stringify(value)`; `btoa` alone throws on non-Latin-1 text. */
+function encodeJsonBase64(value: unknown): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }
 
+function decodeJsonBase64(headerValue: string): unknown {
+  const binary = atob(headerValue);
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+}
+
+export function encodePaymentRequired(pr: PaymentRequired): string {
+  return encodeJsonBase64(pr);
+}
+
+/** Decodes the header. The result is untrusted input: validate before use. */
 export function decodePaymentRequired(headerValue: string): PaymentRequired {
-  return JSON.parse(atob(headerValue)) as PaymentRequired;
+  return decodeJsonBase64(headerValue) as PaymentRequired;
 }
 
 export function encodePaymentPayload(payload: PaymentPayload): string {
-  return btoa(JSON.stringify(payload));
+  return encodeJsonBase64(payload);
 }
 
+/** Decodes the header. The result is untrusted input: validate before use. */
 export function decodePaymentPayload(headerValue: string): PaymentPayload {
-  return JSON.parse(atob(headerValue)) as PaymentPayload;
+  return decodeJsonBase64(headerValue) as PaymentPayload;
 }
 
 export function encodePaymentResponse(pr: PaymentResponse): string {
-  return btoa(JSON.stringify(pr));
+  return encodeJsonBase64(pr);
 }
 
+/** Decodes the header. The result is untrusted input: validate before use. */
 export function decodePaymentResponse(headerValue: string): PaymentResponse {
-  return JSON.parse(atob(headerValue)) as PaymentResponse;
+  return decodeJsonBase64(headerValue) as PaymentResponse;
 }
 
 // ─── Request / Response helpers ─────────────────────────────────────────────
