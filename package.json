@@ -1,7 +1,7 @@
 {
   "name": "@nirholas/agent-payments-sdk",
   "version": "0.2.0",
-  "description": "Cross-chain payments SDK for Pump Agent — Solana-native + EVM cross-chain support",
+  "description": "TypeScript SDK for Pump Agent Payments on Solana, with EVM payment helpers and x402 clients",
   "publishConfig": {
     "access": "public"
   },
@@ -11,72 +11,133 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./evm": {
-      "types": "./dist/evm/index.d.ts",
-      "import": "./dist/evm/index.js",
-      "require": "./dist/evm/index.cjs"
+      "import": {
+        "types": "./dist/evm/index.d.ts",
+        "default": "./dist/evm/index.js"
+      },
+      "require": {
+        "types": "./dist/evm/index.d.cts",
+        "default": "./dist/evm/index.cjs"
+      }
     },
     "./evm/index": {
-      "types": "./dist/evm/index.d.ts",
-      "import": "./dist/evm/index.js",
-      "require": "./dist/evm/index.cjs"
+      "import": {
+        "types": "./dist/evm/index.d.ts",
+        "default": "./dist/evm/index.js"
+      },
+      "require": {
+        "types": "./dist/evm/index.d.cts",
+        "default": "./dist/evm/index.cjs"
+      }
     },
     "./solana": {
-      "types": "./dist/solana/index.d.ts",
-      "import": "./dist/solana/index.js",
-      "require": "./dist/solana/index.cjs"
+      "import": {
+        "types": "./dist/solana/index.d.ts",
+        "default": "./dist/solana/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/index.d.cts",
+        "default": "./dist/solana/index.cjs"
+      }
     },
     "./solana/index": {
-      "types": "./dist/solana/index.d.ts",
-      "import": "./dist/solana/index.js",
-      "require": "./dist/solana/index.cjs"
+      "import": {
+        "types": "./dist/solana/index.d.ts",
+        "default": "./dist/solana/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/index.d.cts",
+        "default": "./dist/solana/index.cjs"
+      }
     },
     "./solana/legacy-agent-payments": {
-      "types": "./dist/solana/legacy-agent-payments/index.d.ts",
-      "import": "./dist/solana/legacy-agent-payments/index.js",
-      "require": "./dist/solana/legacy-agent-payments/index.cjs"
+      "import": {
+        "types": "./dist/solana/legacy-agent-payments/index.d.ts",
+        "default": "./dist/solana/legacy-agent-payments/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/legacy-agent-payments/index.d.cts",
+        "default": "./dist/solana/legacy-agent-payments/index.cjs"
+      }
     },
     "./solana/legacy-agent-payments/index": {
-      "types": "./dist/solana/legacy-agent-payments/index.d.ts",
-      "import": "./dist/solana/legacy-agent-payments/index.js",
-      "require": "./dist/solana/legacy-agent-payments/index.cjs"
+      "import": {
+        "types": "./dist/solana/legacy-agent-payments/index.d.ts",
+        "default": "./dist/solana/legacy-agent-payments/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/legacy-agent-payments/index.d.cts",
+        "default": "./dist/solana/legacy-agent-payments/index.cjs"
+      }
     },
     "./solana/solana-agent-kit": {
-      "types": "./dist/solana/solana-agent-kit/index.d.ts",
-      "import": "./dist/solana/solana-agent-kit/index.js",
-      "require": "./dist/solana/solana-agent-kit/index.cjs"
+      "import": {
+        "types": "./dist/solana/solana-agent-kit/index.d.ts",
+        "default": "./dist/solana/solana-agent-kit/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/solana-agent-kit/index.d.cts",
+        "default": "./dist/solana/solana-agent-kit/index.cjs"
+      }
     },
     "./solana/solana-agent-kit/index": {
-      "types": "./dist/solana/solana-agent-kit/index.d.ts",
-      "import": "./dist/solana/solana-agent-kit/index.js",
-      "require": "./dist/solana/solana-agent-kit/index.cjs"
+      "import": {
+        "types": "./dist/solana/solana-agent-kit/index.d.ts",
+        "default": "./dist/solana/solana-agent-kit/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/solana-agent-kit/index.d.cts",
+        "default": "./dist/solana/solana-agent-kit/index.cjs"
+      }
     },
     "./x402": {
-      "types": "./dist/x402/index.d.ts",
-      "import": "./dist/x402/index.js",
-      "require": "./dist/x402/index.cjs"
+      "import": {
+        "types": "./dist/x402/index.d.ts",
+        "default": "./dist/x402/index.js"
+      },
+      "require": {
+        "types": "./dist/x402/index.d.cts",
+        "default": "./dist/x402/index.cjs"
+      }
     },
     "./x402/index": {
-      "types": "./dist/x402/index.d.ts",
-      "import": "./dist/x402/index.js",
-      "require": "./dist/x402/index.cjs"
+      "import": {
+        "types": "./dist/x402/index.d.ts",
+        "default": "./dist/x402/index.js"
+      },
+      "require": {
+        "types": "./dist/x402/index.d.cts",
+        "default": "./dist/x402/index.cjs"
+      }
     },
     "./solana-agent-kit": {
-      "types": "./dist/solana/solana-agent-kit/index.d.ts",
-      "import": "./dist/solana/solana-agent-kit/index.js",
-      "require": "./dist/solana/solana-agent-kit/index.cjs"
-    }
+      "import": {
+        "types": "./dist/solana/solana-agent-kit/index.d.ts",
+        "default": "./dist/solana/solana-agent-kit/index.js"
+      },
+      "require": {
+        "types": "./dist/solana/solana-agent-kit/index.d.cts",
+        "default": "./dist/solana/solana-agent-kit/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "README.md",
-    "CHANGELOG.md"
+    "README.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -109,7 +170,7 @@
   },
   "homepage": "https://github.com/nirholas/agent-payments-sdk#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
@@ -119,22 +180,6 @@
     "bn.js": "^5.2.3",
     "viem": "^2.21.0",
     "zod": "^4.6.7"
-  },
-  "peerDependencies": {
-    "@coral-xyz/anchor": "^0.31.1",
-    "@solana/web3.js": "^1.99.0",
-    "zod": "^3.0.0 || ^4.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@coral-xyz/anchor": {
-      "optional": true
-    },
-    "@solana/web3.js": {
-      "optional": true
-    },
-    "zod": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@pump-fun/agent-payments-sdk-legacy": "npm:@pump-fun/agent-payments-sdk@1.0.7",

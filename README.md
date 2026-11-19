@@ -11,30 +11,30 @@ Cross-chain payments SDK for Pump tokenized agents. The Solana surface ships two
 
 ## Install
 
-This package is **not published to the npm registry**; `npm i @nirholas/agent-payments-sdk` resolves to a 404. Install it from the GitHub repository instead. Solana is the primary surface and pulls in Anchor and `@solana/web3.js`; EVM uses `viem`.
-
 ```bash
-npm i github:nirholas/agent-payments-sdk
+npm i @nirholas/agent-payments-sdk
 ```
 
-Or clone and link it for local development:
+Or clone and build it for local development:
 
 ```bash
 git clone https://github.com/nirholas/agent-payments-sdk
 cd agent-payments-sdk && npm ci && npm run build
 ```
 
-Runtime requirements (from [package.json](package.json)):
+Solana is the primary surface and pulls in Anchor and `@solana/web3.js`; EVM uses `viem`. Runtime dependencies (from [package.json](package.json)), installed with the package:
 
 | Dependency | Version |
 |---|---|
 | `@coral-xyz/anchor` | `^0.31.1` |
-| `@solana/web3.js` | `^1.98.0` |
+| `@pump-fun/pump-sdk` | `^4.0.0` |
+| `@solana/web3.js` | `^1.99.0` |
 | `@solana/spl-token` | `^0.4.9` |
+| `bn.js` | `^5.2.3` |
 | `viem` | `^2.21.0` |
-| `zod` (peer, optional) | `^3.0.0` |
+| `zod` | `^4.6.7` |
 
-`package.json` declares `"engines": { "node": ">=18" }`. Node 18+ is required because the package is ESM-first and the SDK depends on `@solana/web3.js@^1.98`.
+Node 20 or newer is required (`"engines": { "node": ">=20" }`): the SDK relies on the global `fetch` and Web Crypto (`globalThis.crypto`) APIs. Both an ESM and a CommonJS build ship, each with its own type declarations.
 
 ## Quickstart: Solana modern (3.0.x)
 
@@ -198,7 +198,7 @@ npm run clean          # rm -rf dist
 
 Tests run on [vitest](https://vitest.dev) and live next to the sources they cover (`src/**/*.test.ts`), plus `src/solana/legacy-agent-payments/__tests__/`. Coverage is scoped to the legacy module per [vitest.config.ts](vitest.config.ts).
 
-The package is ESM-first (`"type": "module"`) and Node 18+ is required for the global `fetch` and `BigInt` APIs assumed by the EVM surface.
+The package is ESM-first (`"type": "module"`) and also ships a CommonJS build. Node 20+ is required for the global `fetch` and Web Crypto APIs.
 
 ## License
 
