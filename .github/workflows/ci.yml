@@ -42,7 +42,7 @@ jobs:
           npm pack --dry-run --json > pack.json
           node -e '
             const files = require("./pack.json")[0].files.map((f) => f.path);
-            const stray = files.filter((p) => !/^(dist\/|README\.md$|LICENSE$|package\.json$)/.test(p));
+            const stray = files.filter((p) => !/^(dist\/|README\.md$|LICENSE$|NOTICE$|package\.json$)/.test(p));
             if (stray.length) { console.error("Unexpected files in the tarball:", stray); process.exit(1); }
             console.log(files.length + " files");
           '
