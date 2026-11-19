@@ -4,6 +4,7 @@
 
 import {
   createPublicClient,
+  getAbiItem,
   http,
   type Address,
   type Hash,
@@ -22,6 +23,11 @@ import type {
   EvmPaymentStats,
 } from "./types.js";
 import { NATIVE_TOKEN_ADDRESS } from "./addresses.js";
+
+const PAYMENT_ACCEPTED_EVENT = getAbiItem({
+  abi: AGENT_PAYMENTS_ABI,
+  name: "PaymentAccepted",
+});
 
 /**
  * EvmAgent — extends EvmAgentOffline with RPC reads and invoice validation.
@@ -129,7 +135,14 @@ export class EvmAgent extends EvmAgentOffline {
     memo: bigint;
     startTime: bigint;
     endTime: bigint;
+    /**
+     * Require that this address paid. The isInvoicePaid mapping does not
+     * record the payer, so with `payer` set only a matching PaymentAccepted
+     * event counts.
+     */
     payer?: Address;
+    /** First block of the event scan (default: "earliest"; many RPCs cap the range). */
+    fromBlock?: bigint;
   }): Promise<EvmInvoiceValidationResult> {
     const currency =
       params.currencyToken === "native" ? NATIVE_TOKEN_ADDRESS : params.currencyToken;
@@ -143,9 +156,8 @@ export class EvmAgent extends EvmAgentOffline {
       params.endTime
     );
 
-    // Primary: direct mapping lookup
-    const paid = await this.isInvoicePaid(invoiceId);
-    if (paid) {
+    // Primary: direct mapping lookup (cannot tell who paid)
+    if (!params.payer && (await this.isInvoicePaid(invoiceId))) {
       return { paid: true, invoiceId };
     }
 
@@ -153,12 +165,12 @@ export class EvmAgent extends EvmAgentOffline {
     try {
       const logs = await this.client.getLogs({
         address: this.contractAddress,
-        event: AGENT_PAYMENTS_ABI.find((x) => x.type === "event" && x.name === "PaymentAccepted") as any,
+        event: PAYMENT_ACCEPTED_EVENT,
         args: { agentToken: this.agentToken, payer: params.payer },
-        fromBlock: "earliest",
+        fromBlock: params.fromBlock ?? "earliest",
       });
 
-      const events = parseEvmAgentEvents(logs as any);
+      const events = parseEvmAgentEvents(logs);
       const match = events.find(
         (e): e is EvmPaymentAcceptedEvent =>
           e.name === "PaymentAccepted" &&
@@ -192,7 +204,7 @@ export class EvmAgent extends EvmAgentOffline {
   } = {}) {
     const logs = await this.client.getLogs({
       address: this.contractAddress,
-      event: AGENT_PAYMENTS_ABI.find((x) => x.type === "event" && x.name === "PaymentAccepted") as any,
+      event: PAYMENT_ACCEPTED_EVENT,
       args: {
         agentToken: this.agentToken,
         ...(opts.payer ? { payer: opts.payer } : {}),
@@ -201,7 +213,7 @@ export class EvmAgent extends EvmAgentOffline {
       toBlock: opts.toBlock ?? "latest",
     });
 
-    return parseEvmAgentEvents(logs as any).filter(
+    return parseEvmAgentEvents(logs).filter(
       (e): e is EvmPaymentAcceptedEvent =>
         e.name === "PaymentAccepted" &&
         (!opts.currencyToken ||

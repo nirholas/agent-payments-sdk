@@ -6,8 +6,7 @@ import { AnchorProvider, Program } from "@coral-xyz/anchor";
 import { Connection, PublicKey } from "@solana/web3.js";
 import type { PumpAgentPayments } from "./idl/pump_agent_payments";
 
-// The IDL object is imported at runtime from the JSON file via tsup bundling.
-// We use a require/import pattern that tsup resolves.
+// tsup inlines the JSON IDL into the bundle.
 import IDL from "./idl/pump_agent_payments.json";
 
 /**
@@ -31,10 +30,11 @@ export function getPumpProgram(
 /**
  * Offline program instance (no connection required).
  * Useful for instruction building and account decoding without RPC.
+ * It has no real connection: calling anything that needs RPC on it fails.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const OFFLINE_PUMP_PROGRAM: Program<PumpAgentPayments> =
-  getPumpProgram(null as any);
+export const OFFLINE_PUMP_PROGRAM: Program<PumpAgentPayments> = getPumpProgram(
+  { commitment: "processed" } as unknown as Connection,
+);
 
 /**
  * Returns the program instance, falling back to the offline program
