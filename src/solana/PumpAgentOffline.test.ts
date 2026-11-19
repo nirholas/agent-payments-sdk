@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { Keypair, PublicKey, type AccountInfo } from "@solana/web3.js";
-import { NATIVE_MINT, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { NATIVE_MINT, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@coral-xyz/anchor";
 
 import {
@@ -327,5 +327,39 @@ describe("PumpAgentOffline.buildAcceptPaymentInstructions integer handling", () 
         memo: 9007199254740993,
       }),
     ).rejects.toThrow(RangeError);
+  });
+});
+
+describe("PumpAgentOffline.distributeAndBuybackForCoin", () => {
+  beforeEach(() => {
+    PumpAgentOffline._clearCoinQuoteMintCache();
+  });
+
+  it("derives the burn vault with the agent mint's Token-2022 program", async () => {
+    const agentMint = Keypair.generate().publicKey;
+    const bondingCurve = getBondingCurvePDA(agentMint)[0];
+    const connection = {
+      getAccountInfo: vi.fn(async (key: PublicKey) =>
+        key.equals(bondingCurve)
+          ? fakeAccountInfo(buildBondingCurveBuffer(USDC_MINT))
+          : key.equals(agentMint)
+            ? fakeAccountInfo(Buffer.alloc(82), TOKEN_2022_PROGRAM_ID)
+            : null,
+      ),
+    } as unknown as import("@solana/web3.js").Connection;
+
+    const agent = PumpAgentOffline.load(agentMint);
+    const spy = vi.spyOn(agent, "buybackTrigger");
+    await agent.distributeAndBuybackForCoin({
+      connection,
+      user: Keypair.generate().publicKey,
+      globalBuybackAuthority: Keypair.generate().publicKey,
+      baseMint: agentMint,
+      swapProgramToInvoke: Keypair.generate().publicKey,
+      swapInstructionData: Buffer.alloc(0),
+      remainingAccounts: [],
+    });
+    expect(spy.mock.calls[0]?.[0].tokenProgram?.equals(TOKEN_2022_PROGRAM_ID)).toBe(true);
+    expect(spy.mock.calls[0]?.[0].tokenProgramCurrency?.equals(TOKEN_PROGRAM_ID)).toBe(true);
   });
 });

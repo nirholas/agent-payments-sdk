@@ -137,14 +137,14 @@ export function getBondingCurvePDA(
 }
 
 /**
- * Derives the SharingConfig PDA for a given mint.
- * Seeds: ["sharing-config", mint]
+ * Derives the fee SharingConfig PDA for a given mint.
+ * Seeds: ["sharing-config", mint] (program = Pump Fees)
  */
 export function getSharingConfigPDA(
   mint: PublicKey,
 ): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [SHARING_CONFIG_SEED, mint.toBuffer()],
-    PROGRAM_ID,
+    PUMP_FEES_PROGRAM_ID,
   );
 }

@@ -571,7 +571,12 @@ export class PumpAgentOffline {
     } = params;
 
     const quoteMint = await PumpAgentOffline.getCoinQuoteMint(connection, baseMint);
-    const tpCurrency = await resolveTokenProgramForMint(connection, quoteMint);
+    const [tpCurrency, tpAgentMint] = await Promise.all([
+      resolveTokenProgramForMint(connection, quoteMint),
+      // Coins created with create_v2 are Token-2022; the burn vault is that
+      // program's ATA of the agent mint.
+      resolveTokenProgramForMint(connection, this.mint),
+    ]);
 
     const [distributeIx] = await this.distributePayments({
       user,
@@ -586,7 +591,7 @@ export class PumpAgentOffline {
       swapInstructionData,
       remainingAccounts,
       tokenProgramCurrency: tpCurrency,
-      tokenProgram: TOKEN_PROGRAM_ID,
+      tokenProgram: tpAgentMint,
     });
 
     return [distributeIx, buybackIx];
