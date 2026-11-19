@@ -47,12 +47,15 @@ type AccountChangeCb = (info: { data: Buffer }, ctx: { slot: number }) => void;
 
 function makeConnection(
   initialData: Buffer,
-  { subscriptionId = 42 }: { subscriptionId?: number } = {},
+  { subscriptionId = 42, snapshotSlot = 50 }: { subscriptionId?: number; snapshotSlot?: number } = {},
 ) {
   let registeredCb: AccountChangeCb | null = null;
 
   const mockConnection = {
     getAccountInfo: vi.fn().mockResolvedValue({ data: initialData }),
+    getAccountInfoAndContext: vi
+      .fn()
+      .mockResolvedValue({ context: { slot: snapshotSlot }, value: { data: initialData } }),
     onAccountChange: vi.fn().mockImplementation(
       (_pubkey: PublicKey, cb: AccountChangeCb, _commitment: string) => {
         registeredCb = cb;
@@ -136,6 +139,35 @@ describe("WhitelistMonitor", () => {
 
     expect(events.length).toBe(1); // change was filtered out
 
+    await stop();
+  });
+
+  it("ignores empty (default-key) whitelist slots", async () => {
+    const conn = makeConnection(encodeGlobal([MINT_A, PublicKey.default]));
+    expect(await WhitelistMonitor.isWhitelisted(conn, PublicKey.default)).toBe(false);
+    expect(await WhitelistMonitor.getCurrentWhitelist(conn)).toEqual([MINT_A]);
+  });
+
+  it("drops updates buffered during bootstrap that the snapshot already covers", async () => {
+    const conn = makeConnection(encodeGlobal([MINT_B]), { snapshotSlot: 500 });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    const snapshot = conn.getAccountInfoAndContext;
+    vi.mocked(snapshot).mockImplementationOnce(async () => {
+      await gate;
+      return { context: { slot: 500 }, value: { data: encodeGlobal([MINT_B]) } } as never;
+    });
+    const events: WhitelistChangeEvent[] = [];
+    const stop = new WhitelistMonitor(conn, (e) => events.push(e)).start();
+
+    // An older state arrives over the websocket before the snapshot returns.
+    conn.simulateChange(encodeGlobal([MINT_A]), 400);
+    release();
+    await flushPromises();
+
+    // Only the snapshot fires: no bogus "B removed, A added" from the stale update.
+    expect(events).toHaveLength(1);
+    expect(events[0].currentWhitelist).toEqual([MINT_B]);
     await stop();
   });
 

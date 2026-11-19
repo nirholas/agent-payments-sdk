@@ -7,7 +7,7 @@ import {
   type AccountInfo,
   type Commitment,
   type Connection,
-  type PublicKey,
+  PublicKey,
 } from "@solana/web3.js";
 
 export { PUMP_PROGRAM_ID };
@@ -25,7 +25,10 @@ export interface WhitelistChangeEvent {
 
 function decodeWhitelist(data: Buffer): PublicKey[] {
   const global = PUMP_SDK.decodeGlobal({ data } as AccountInfo<Buffer>);
-  return global.whitelistedQuoteMints ?? [];
+  // Unused slots in the fixed-size array hold the default (all-zero) key.
+  return (global.whitelistedQuoteMints ?? []).filter(
+    (k) => !k.equals(PublicKey.default),
+  );
 }
 
 function setDiff(a: PublicKey[], b: PublicKey[]): PublicKey[] {
@@ -63,6 +66,7 @@ export class WhitelistMonitor {
     const commitment: Commitment = this.options?.commitment ?? "confirmed";
     let prev: PublicKey[] = [];
     let bootstrapped = false;
+    let snapshotSlot = -1;
     const buffered: Array<{ data: Buffer; slot: number }> = [];
 
     const fire = (
@@ -124,10 +128,9 @@ export class WhitelistMonitor {
 
     const bootstrap = (async () => {
       try {
-        const info = await this.connection.getAccountInfo(
-          PUMP_GLOBAL_PDA,
-          commitment,
-        );
+        const { context, value: info } =
+          await this.connection.getAccountInfoAndContext(PUMP_GLOBAL_PDA, commitment);
+        snapshotSlot = context.slot;
         if (!info) {
           throw new Error(
             `Pump Global PDA ${PUMP_GLOBAL_PDA.toBase58()} not found`,
@@ -141,14 +144,15 @@ export class WhitelistMonitor {
           removedMints: [],
           currentWhitelist: initial,
           timestamp: new Date(),
-          slot: 0,
+          slot: 0, // initial-snapshot sentinel
         });
       } catch (err) {
         console.error("WhitelistMonitor: bootstrap failed:", err);
       } finally {
         bootstrapped = true;
+        // Updates at or before the snapshot are already reflected in it.
         for (const { data, slot } of buffered.splice(0)) {
-          applyUpdate(data, slot);
+          if (slot > snapshotSlot) applyUpdate(data, slot);
         }
       }
     })();
