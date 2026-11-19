@@ -33,6 +33,7 @@ export type {
   PaymentResponse,
   ResourceServerConfig,
   X402ClientConfig,
+  PaymentApprover,
   TransactionSigner,
   TransactionSender,
 } from "./types";

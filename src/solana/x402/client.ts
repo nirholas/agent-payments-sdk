@@ -21,12 +21,11 @@ import {
 import {
   getMint,
   getAssociatedTokenAddressSync,
-  createAssociatedTokenAccountInstruction,
+  createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
-  TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { PumpAgentOffline } from "../PumpAgentOffline";
+import { PumpAgentOffline, resolveTokenProgramForMint } from "../PumpAgentOffline";
 import {
   encodePaymentPayload,
   getPaymentRequiredFromResponse,
@@ -54,10 +53,15 @@ import {
  *
  * @example
  * ```ts
- * import { createX402Fetch } from "@pump-fun/agent-payments-sdk/x402";
+ * import { x402 } from "@nirholas/agent-payments-sdk/solana";
+ * const { createX402Fetch } = x402;
  *
  * const x402fetch = createX402Fetch({
+ *   connection,
  *   payer: wallet.publicKey.toBase58(),
+ *   // Never pay more than 0.10 USDC, and only in USDC.
+ *   approvePayment: (req) =>
+ *     req.asset === x402.USDC_MAINNET && BigInt(req.amount) <= 100_000n,
  *   signTransaction: async (txBase64) => {
  *     const tx = Transaction.from(Buffer.from(txBase64, "base64"));
  *     const signed = await wallet.signTransaction(tx);
@@ -85,6 +89,7 @@ export function createX402Fetch(
     signTransaction,
     sendTransaction,
     connection,
+    approvePayment,
     network = SOLANA_MAINNET,
     confirmationTimeoutMs = 30_000,
   } = config;
@@ -93,16 +98,25 @@ export function createX402Fetch(
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> => {
+    // A Request body can only be read once; keep a copy for the paid retry.
+    const retryInput = input instanceof Request ? input.clone() : input;
     const response = await fetch(input, init);
 
     if (response.status !== 402) return response;
 
-    const paymentRequired = getPaymentRequiredFromResponse(response);
-    if (!paymentRequired) return response;
+    let paymentRequired: PaymentRequired | null;
+    try {
+      paymentRequired = getPaymentRequiredFromResponse(response);
+    } catch {
+      return response;
+    }
+    if (!paymentRequired || !Array.isArray(paymentRequired.accepts)) return response;
 
-    // Find a compatible requirement
+    // Find a compatible, well-formed requirement
     const accepted = selectRequirement(paymentRequired, network);
     if (!accepted) return response;
+
+    if (approvePayment && !(await approvePayment(accepted))) return response;
 
     // Build, sign, and send the payment
     const proof = await buildPaymentProof(
@@ -122,30 +136,71 @@ export function createX402Fetch(
       payload: proof,
     };
 
-    // Retry the original request with PAYMENT-SIGNATURE header
-    const retryInit: RequestInit = { ...init };
-    const headers = new Headers(retryInit.headers);
+    // Retry the original request with PAYMENT-SIGNATURE header. Headers in
+    // `init` replace a Request's own headers, so start from whichever applies.
+    await response.body?.cancel();
+    const headers = new Headers(
+      init?.headers ?? (retryInput instanceof Request ? retryInput.headers : undefined),
+    );
     headers.set(X402_HEADER_PAYMENT_SIGNATURE, encodePaymentPayload(paymentPayload));
-    retryInit.headers = headers;
 
-    return fetch(input, retryInit);
+    return fetch(retryInput, { ...init, headers });
   };
 }
 
 // ─── Requirement Selection ──────────────────────────────────────────────────
 
+function isBase58Key(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    new PublicKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPositiveU64(value: unknown): boolean {
+  return (
+    typeof value === "string" &&
+    /^\d{1,20}$/.test(value) &&
+    BigInt(value) > 0n &&
+    BigInt(value) < 1n << 64n
+  );
+}
+
+/** Rejects requirements a server could use to make the client build a bogus payment. */
+function isPayable(r: unknown): r is PaymentRequirements {
+  if (typeof r !== "object" || r === null) return false;
+  const req = r as Partial<PaymentRequirements>;
+  if (!isBase58Key(req.asset) || !isPositiveU64(req.amount)) return false;
+  if (req.scheme === "exact") return isBase58Key(req.payTo);
+  if (req.scheme === "pump-agent") {
+    const extra = req.extra as Partial<PumpAgentPaymentRequirements["extra"]> | undefined;
+    return (
+      extra !== undefined &&
+      isBase58Key(extra.agentMint) &&
+      typeof extra.memo === "string" &&
+      /^\d{1,20}$/.test(extra.memo) &&
+      BigInt(extra.memo) < 1n << 64n &&
+      Number.isSafeInteger(extra.startTime) &&
+      Number.isSafeInteger(extra.endTime)
+    );
+  }
+  return false;
+}
+
 function selectRequirement(
   paymentRequired: PaymentRequired,
   network: string,
 ): PaymentRequirements | null {
+  const payable = paymentRequired.accepts.filter(
+    (r) => isPayable(r) && r.network === network,
+  );
   // Prefer pump-agent scheme on the matching network, then fall back to exact
   return (
-    paymentRequired.accepts.find(
-      (r) => r.scheme === "pump-agent" && r.network === network,
-    ) ??
-    paymentRequired.accepts.find(
-      (r) => r.scheme === "exact" && r.network === network,
-    ) ??
+    payable.find((r) => r.scheme === "pump-agent") ??
+    payable.find((r) => r.scheme === "exact") ??
     null
   );
 }
@@ -254,9 +309,10 @@ async function buildExactProof(
   const payTo = new PublicKey(requirements.payTo);
   const amount = BigInt(requirements.amount);
 
-  const mintInfo = await getMint(connection, mint);
-  const senderAta = getAssociatedTokenAddressSync(mint, payerPk, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
-  const receiverAta = getAssociatedTokenAddressSync(mint, payTo, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+  const tokenProgram = await resolveTokenProgramForMint(connection, mint);
+  const mintInfo = await getMint(connection, mint, "confirmed", tokenProgram);
+  const senderAta = getAssociatedTokenAddressSync(mint, payerPk, false, tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID);
+  const receiverAta = getAssociatedTokenAddressSync(mint, payTo, true, tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID);
 
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
 
@@ -267,15 +323,15 @@ async function buildExactProof(
 
   const receiverInfo = await connection.getAccountInfo(receiverAta);
   if (!receiverInfo) {
-    tx.add(createAssociatedTokenAccountInstruction(
+    tx.add(createAssociatedTokenAccountIdempotentInstruction(
       payerPk, receiverAta, payTo, mint,
-      TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID,
     ));
   }
 
   tx.add(createTransferCheckedInstruction(
     senderAta, mint, receiverAta, payerPk,
-    amount, mintInfo.decimals, [], TOKEN_PROGRAM_ID,
+    amount, mintInfo.decimals, [], tokenProgram,
   ));
 
   const txBase64 = Buffer.from(tx.serialize({ requireAllSignatures: false })).toString("base64");

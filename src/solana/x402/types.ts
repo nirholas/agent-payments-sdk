@@ -184,9 +184,24 @@ export interface ResourceServerConfig {
 export type TransactionSigner = (txBase64: string) => Promise<string>;
 export type TransactionSender = (signedTxBase64: string) => Promise<string>;
 
+/**
+ * Decides whether the client may pay the requirement a server asked for.
+ * Resolve `false` to decline; the client then returns the 402 response as is.
+ */
+export type PaymentApprover = (
+  requirements: PaymentRequirements,
+) => boolean | Promise<boolean>;
+
 export interface X402ClientConfig {
   /** Payer's public key (base58) */
   payer: string;
+  /**
+   * Called with the selected requirement before anything is signed or sent.
+   * The amount, asset and recipient come from the server, so use this to cap
+   * spending or allow-list assets and agents. Without it the client pays
+   * whatever a 402 response asks for.
+   */
+  approvePayment?: PaymentApprover;
   /** Sign a serialised transaction, return signed base64 */
   signTransaction: TransactionSigner;
   /** Send a signed transaction, return the tx signature (base58) */
