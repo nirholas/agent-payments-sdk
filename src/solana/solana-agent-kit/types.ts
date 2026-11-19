@@ -21,8 +21,9 @@ export type ActionHandler = (
 ) => Promise<Record<string, any>>;
 
 export interface ActionExample {
-  input: Record<string, string>;
-  output: Record<string, string>;
+  /** Example input; values match the action's schema types. */
+  input: Record<string, unknown>;
+  output: Record<string, unknown>;
   explanation: string;
 }
 

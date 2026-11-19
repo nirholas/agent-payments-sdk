@@ -24,6 +24,39 @@ function pk(value: string): PublicKey {
   return new PublicKey(value);
 }
 
+const U64_MAX = (1n << 64n) - 1n;
+const DIGITS = /^\d+$/;
+
+/** A u64 written as a plain decimal string (no sign, decimals or exponent). */
+function u64String(description: string) {
+  // Each refinement re-checks DIGITS: zod can run refinements after a failed check.
+  return z
+    .string()
+    .regex(DIGITS, "must be a non-negative integer in base units")
+    .refine((v) => DIGITS.test(v) && BigInt(v) <= U64_MAX, "must fit in a u64")
+    .describe(description);
+}
+
+/** A positive u64 decimal string. */
+function positiveU64String(description: string) {
+  return u64String(description).refine(
+    (v) => DIGITS.test(v) && BigInt(v) > 0n,
+    "must be greater than zero",
+  );
+}
+
+/** A unix timestamp in seconds as a decimal string (i64; may be negative). */
+function unixSecondsString(description: string) {
+  return z.string().regex(/^-?\d+$/, "must be an integer").describe(description);
+}
+
+const slippagePctSchema = z
+  .number()
+  .min(0)
+  .max(100)
+  .default(5)
+  .describe("Max slippage percent (0-100)");
+
 function serializeIx(ix: TransactionInstruction) {
   return {
     programId: ix.programId.toBase58(),
@@ -59,11 +92,10 @@ export const createAgentPaymentsAction: Action = {
       {
         input: {
           mint: "So11111111111111111111111111111111111111112",
-          buybackBps: "500",
+          buybackBps: 500,
         },
         output: {
-          status: "success",
-          signature: "5K4b...txSig",
+          instruction: "{...serialized instruction, unsigned}",
         },
         explanation:
           "Initialize agent payments for the given token with 5% buyback.",
@@ -140,16 +172,10 @@ export const buildPaymentInstructionsAction: Action = {
       .string()
       .optional()
       .describe("Currency mint to pay in. Defaults to native SOL (wrapped)."),
-    amount: z.string().describe("Payment amount in the currency's smallest unit"),
-    memo: z.string().default("0").describe("Invoice memo / identifier"),
-    startTime: z
-      .string()
-      .default("0")
-      .describe("Invoice start time (unix seconds). Defaults to 0."),
-    endTime: z
-      .string()
-      .default("0")
-      .describe("Invoice end time (unix seconds). Defaults to 0."),
+    amount: positiveU64String("Payment amount in the currency's smallest unit"),
+    memo: u64String("Invoice memo / identifier").default("0"),
+    startTime: unixSecondsString("Invoice start time (unix seconds). Defaults to 0.").default("0"),
+    endTime: unixSecondsString("Invoice end time (unix seconds). Defaults to 0.").default("0"),
   }),
   handler: async (kit, input) => {
     const pumpAgent = PumpAgentOffline.load(pk(input.mint), kit.connection);
@@ -263,10 +289,10 @@ export const validateInvoiceAction: Action = {
     mint: z.string().describe("Token mint address of the agent"),
     user: z.string().describe("Public key of the payer to validate"),
     currencyMint: z.string().describe("Currency mint used for payment"),
-    amount: z.string().describe("Expected payment amount"),
-    memo: z.string().describe("Expected invoice memo"),
-    startTime: z.string().describe("Expected invoice start time (unix seconds)"),
-    endTime: z.string().describe("Expected invoice end time (unix seconds)"),
+    amount: u64String("Expected payment amount"),
+    memo: u64String("Expected invoice memo"),
+    startTime: unixSecondsString("Expected invoice start time (unix seconds)"),
+    endTime: unixSecondsString("Expected invoice end time (unix seconds)"),
   }),
   handler: async (kit, input) => {
     const pumpAgent = agent(kit, input.mint);
@@ -303,8 +329,7 @@ export const distributePaymentsAction: Action = {
           mint: "So11111111111111111111111111111111111111112",
         },
         output: {
-          status: "success",
-          signature: "3Yp7...txSig",
+          instructions: "[...serialized instructions, unsigned]",
         },
         explanation: "Distribute accumulated SOL payments for the agent.",
       },
@@ -353,8 +378,7 @@ export const withdrawAction: Action = {
           currencyMint: "So11111111111111111111111111111111111111112",
         },
         output: {
-          status: "success",
-          signature: "4Rz8...txSig",
+          instruction: "{...serialized instruction, unsigned}",
         },
         explanation: "Withdraw accumulated SOL earnings from the agent.",
       },
@@ -499,11 +523,10 @@ export const updateBuybackBpsAction: Action = {
       {
         input: {
           mint: "So11111111111111111111111111111111111111112",
-          buybackBps: "1000",
+          buybackBps: 1000,
         },
         output: {
-          status: "success",
-          signature: "5Tz9...txSig",
+          instruction: "{...serialized instruction, unsigned}",
         },
         explanation: "Update buyback to 10% (1000 bps) for the agent.",
       },
@@ -546,7 +569,7 @@ export const pumpBuyAction: Action = {
   examples: [
     [
       {
-        input: { mint: "<coin mint>", quoteAmount: "1000000", slippagePct: "5" },
+        input: { mint: "<coin mint>", quoteAmount: "1000000", slippagePct: 5 },
         output: {
           instructions: "[...serialized instructions]",
           quoteMint: "So11111111111111111111111111111111111111112",
@@ -558,10 +581,8 @@ export const pumpBuyAction: Action = {
   ],
   schema: z.object({
     mint: z.string().describe("Mint of the coin to buy"),
-    quoteAmount: z
-      .string()
-      .describe("Amount of the quote currency to spend, in its smallest unit"),
-    slippagePct: z.number().default(5).describe("Max slippage percent"),
+    quoteAmount: positiveU64String("Amount of the quote currency to spend, in its smallest unit"),
+    slippagePct: slippagePctSchema,
   }),
   handler: async (kit, input) => {
     const client = new PumpTradeClient(kit.connection);
@@ -590,7 +611,7 @@ export const pumpSellAction: Action = {
   examples: [
     [
       {
-        input: { mint: "<coin mint>", baseAmount: "1000000", slippagePct: "5" },
+        input: { mint: "<coin mint>", baseAmount: "1000000", slippagePct: 5 },
         output: {
           instructions: "[...serialized instructions]",
           quoteMint: "So11111111111111111111111111111111111111112",
@@ -602,8 +623,8 @@ export const pumpSellAction: Action = {
   ],
   schema: z.object({
     mint: z.string().describe("Mint of the coin to sell"),
-    baseAmount: z.string().describe("Token amount to sell, in base units"),
-    slippagePct: z.number().default(5).describe("Max slippage percent"),
+    baseAmount: positiveU64String("Token amount to sell, in base units"),
+    slippagePct: slippagePctSchema,
   }),
   handler: async (kit, input) => {
     const client = new PumpTradeClient(kit.connection);
@@ -643,10 +664,8 @@ export const pumpBuyExactQuoteInAction: Action = {
   ],
   schema: z.object({
     mint: z.string().describe("Mint of the coin to buy"),
-    spendableQuoteIn: z
-      .string()
-      .describe("Exact quote amount to spend, in its smallest unit"),
-    minBaseOut: z.string().describe("Minimum token base units to receive"),
+    spendableQuoteIn: positiveU64String("Exact quote amount to spend, in its smallest unit"),
+    minBaseOut: u64String("Minimum token base units to receive"),
   }),
   handler: async (kit, input) => {
     const client = new PumpTradeClient(kit.connection);
