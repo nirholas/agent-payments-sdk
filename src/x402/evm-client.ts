@@ -13,6 +13,11 @@ import { getChain } from "../chains.js";
  * this client handles quoting and attaches the payment proof header
  * (X-Payment) to the retry request.
  *
+ * Quoting and bridging go through the Pump.fun cross-chain API
+ * (PUMP_CROSSCHAIN_API), which is not live, so a paid retry currently fails
+ * before anything is sent. The amount and destination come from the server:
+ * pass `onPaymentRequired` to approve or refuse each payment.
+ *
  * Usage:
  *   const fetcher = createEvmX402Fetch({ chainId: 8453, walletClient })
  *   const res = await fetcher("https://agent.example/api/chat", { method: "POST", ... })
@@ -44,7 +49,10 @@ export interface EvmWalletClient {
 
 export interface EvmX402FetchOptions {
   walletClient: EvmWalletClient;
-  /** Called before signing so the UI can show "paying $X..." */
+  /**
+   * Called before anything is sent, with requirements chosen by the server.
+   * Resolve `false` to refuse; without this hook every 402 is paid.
+   */
   onPaymentRequired?: (requirements: EvmX402PaymentRequirements) => Promise<boolean>;
   /** Called after the bridge tx is submitted with the tx hash */
   onPaymentSubmitted?: (txHash: `0x${string}`, depositId: string) => void;
@@ -54,11 +62,30 @@ export interface EvmX402FetchOptions {
  * Returns a fetch-compatible function that automatically handles HTTP 402
  * responses by paying via EVM cross-chain and retrying the request.
  */
+function isPayableRequirements(value: unknown): value is EvmX402PaymentRequirements {
+  if (typeof value !== "object" || value === null) return false;
+  const r = value as Record<string, unknown>;
+  return (
+    r.scheme === "pump-agent-evm" &&
+    typeof r.maxAmountRequired === "string" &&
+    /^\d+$/.test(r.maxAmountRequired) &&
+    BigInt(r.maxAmountRequired) > 0n &&
+    typeof r.agentMint === "string" &&
+    r.agentMint.length > 0 &&
+    typeof r.payTo === "string" &&
+    r.payTo.length > 0 &&
+    typeof r.memo === "string" &&
+    /^\d+$/.test(r.memo)
+  );
+}
+
 export function createEvmX402Fetch(opts: EvmX402FetchOptions) {
   return async function x402Fetch(
     input: RequestInfo | URL,
     init?: RequestInit
   ): Promise<Response> {
+    // A Request body can only be read once; keep a copy for the paid retry.
+    const retryInput = input instanceof Request ? input.clone() : input;
     const firstRes = await fetch(input, init);
 
     if (firstRes.status !== 402) return firstRes;
@@ -66,14 +93,14 @@ export function createEvmX402Fetch(opts: EvmX402FetchOptions) {
     const requirementsHeader = firstRes.headers.get("X-Payment-Required");
     if (!requirementsHeader) return firstRes;
 
-    let requirements: EvmX402PaymentRequirements;
+    let requirements: unknown;
     try {
       requirements = JSON.parse(atob(requirementsHeader));
     } catch {
       return firstRes;
     }
 
-    if (requirements.scheme !== "pump-agent-evm") return firstRes;
+    if (!isPayableRequirements(requirements)) return firstRes;
 
     // Let the UI confirm before signing
     if (opts.onPaymentRequired) {
@@ -135,10 +162,14 @@ export function createEvmX402Fetch(opts: EvmX402FetchOptions) {
       opts.onPaymentSubmitted(bridgeTxHash, quote.quoteId);
     }
 
-    // Retry the original request with payment proof
-    const retryHeaders = new Headers(init?.headers);
+    // Retry the original request with payment proof. Headers in `init`
+    // replace a Request's own headers, so start from whichever applies.
+    await firstRes.body?.cancel();
+    const retryHeaders = new Headers(
+      init?.headers ?? (retryInput instanceof Request ? retryInput.headers : undefined)
+    );
     retryHeaders.set("X-Payment", paymentProof);
 
-    return fetch(input, { ...init, headers: retryHeaders });
+    return fetch(retryInput, { ...init, headers: retryHeaders });
   };
 }

@@ -2,7 +2,13 @@
 // Copyright (c) 2026 nirholas | x.com/nichxbt | github.com/nirholas
 // All rights reserved.
 
-/** Pump.fun cross-chain deposit API (MoonPay-powered) */
+/**
+ * Pump.fun cross-chain deposit API used by the EVM quote, bridge, status and
+ * x402 verification helpers.
+ *
+ * Not live: every route under this base currently answers 404, so those
+ * helpers throw (or, for verifyEvmPayment, return `valid: false`).
+ */
 export const PUMP_CROSSCHAIN_API = "https://api.pump.fun/crosschain";
 
 /** MoonPay widget base URL for fallback UI */

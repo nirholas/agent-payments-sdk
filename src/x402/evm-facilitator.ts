@@ -6,6 +6,7 @@ import type { Address } from "viem";
 import type { CrossChainPaymentStatusResult, SupportedEvmChainId } from "../types.js";
 import { getPaymentStatus } from "../evm/validate.js";
 import { PUMP_CROSSCHAIN_API } from "../constants.js";
+import { isSupported } from "../chains.js";
 
 export interface EvmPaymentProof {
   scheme: "pump-agent-evm";
@@ -16,7 +17,7 @@ export interface EvmPaymentProof {
 }
 
 export interface VerifyEvmPaymentParams {
-  /** Decoded proof from the X-Payment header */
+  /** Decoded proof from the X-Payment header (re-validated here) */
   proof: EvmPaymentProof;
   /** Expected memo / invoice ID */
   expectedMemo: string;
@@ -43,12 +44,42 @@ export interface EvmPaymentVerificationResult {
   error?: string;
 }
 
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
+const DECIMAL = /^\d+$/;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isEvmPaymentProof(value: unknown): value is EvmPaymentProof {
+  return (
+    isRecord(value) &&
+    value.scheme === "pump-agent-evm" &&
+    typeof value.chainId === "number" &&
+    isSupported(value.chainId) &&
+    typeof value.txHash === "string" &&
+    TX_HASH.test(value.txHash) &&
+    typeof value.quoteId === "string" &&
+    typeof value.memo === "string"
+  );
+}
+
 /**
  * Server-side facilitator: verify an EVM payment proof from the X-Payment header.
  *
+ * The deposit is looked up on the Pump.fun cross-chain API
+ * ({@link PUMP_CROSSCHAIN_API}), which is not live: every lookup currently
+ * fails and this function returns `valid: false`.
+ *
+ * A proof is accepted only when the deposit record names this `agentMint` and
+ * `expectedMemo` and carries at least `minAmountUsdc`. This function keeps no
+ * state: record each accepted `proof.txHash` and refuse it the next time, or
+ * the same deposit unlocks unlimited requests.
+ *
  * Call this from your API route after decoding the X-Payment header:
  *
- *   const proof = JSON.parse(atob(req.headers["x-payment"]))
+ *   const proof = decodePaymentHeader(req.headers.get("x-payment"))
+ *   if (!proof) return res.status(402).end()
  *   const result = await verifyEvmPayment({ proof, expectedMemo, minAmountUsdc, agentMint })
  *   if (!result.valid) return res.status(402).json({ error: result.error })
  */
@@ -57,23 +88,41 @@ export async function verifyEvmPayment(
 ): Promise<EvmPaymentVerificationResult> {
   const { proof, expectedMemo, minAmountUsdc, agentMint } = params;
 
-  if (proof.scheme !== "pump-agent-evm") {
-    return { valid: false, error: "Unknown payment scheme" };
+  if (!isEvmPaymentProof(proof)) {
+    return { valid: false, error: "Malformed payment proof" };
   }
 
   if (proof.memo !== expectedMemo) {
     return { valid: false, error: "Memo mismatch" };
   }
 
-  // Fetch the deposit record from Pump.fun API using the quoteId / txHash
+  // Fetch the deposit record from Pump.fun API using the txHash
   let depositId: string;
   try {
-    const res = await fetch(
-      `${PUMP_CROSSCHAIN_API}/deposit?txHash=${proof.txHash}&chainId=${proof.chainId}`
-    );
+    const query = new URLSearchParams({
+      txHash: proof.txHash,
+      chainId: String(proof.chainId),
+    });
+    const res = await fetch(`${PUMP_CROSSCHAIN_API}/deposit?${query}`);
     if (!res.ok) throw new Error(`Deposit lookup failed (${res.status})`);
-    const data: { depositId: string; amountUsdc: string } = await res.json();
+    const data: unknown = await res.json();
+    if (
+      !isRecord(data) ||
+      typeof data.depositId !== "string" ||
+      typeof data.amountUsdc !== "string" ||
+      !DECIMAL.test(data.amountUsdc)
+    ) {
+      throw new Error("Deposit lookup returned a malformed record");
+    }
     depositId = data.depositId;
+
+    if (data.agentMint !== agentMint || data.memo !== expectedMemo) {
+      return {
+        valid: false,
+        depositId,
+        error: "Deposit is not for this agent and memo",
+      };
+    }
 
     const confirmedAmount = BigInt(data.amountUsdc);
     if (confirmedAmount < minAmountUsdc) {
@@ -86,7 +135,7 @@ export async function verifyEvmPayment(
   } catch (err) {
     return {
       valid: false,
-      error: `EVM tx verification failed: ${(err as Error).message}`,
+      error: `EVM tx verification failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 
@@ -115,7 +164,7 @@ export async function verifyEvmPayment(
     return {
       valid: false,
       depositId,
-      error: `Solana arrival timeout: ${(err as Error).message}`,
+      error: `Solana arrival timeout: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 }
@@ -144,9 +193,8 @@ export function decodePaymentHeader(
 ): EvmPaymentProof | null {
   if (!headerValue) return null;
   try {
-    const decoded = JSON.parse(atob(headerValue));
-    if (decoded.scheme !== "pump-agent-evm") return null;
-    return decoded as EvmPaymentProof;
+    const decoded: unknown = JSON.parse(atob(headerValue));
+    return isEvmPaymentProof(decoded) ? decoded : null;
   } catch {
     return null;
   }

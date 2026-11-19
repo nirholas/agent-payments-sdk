@@ -104,9 +104,8 @@ export async function getTokenUsdPrice(
       ? "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
       : tokenAddress;
 
-  const res = await fetch(
-    `${PUMP_CROSSCHAIN_API}/price?network=${chain.moonpayNetwork}&token=${addr}`
-  );
+  const query = new URLSearchParams({ network: chain.moonpayNetwork, token: addr });
+  const res = await fetch(`${PUMP_CROSSCHAIN_API}/price?${query}`);
   if (!res.ok) throw new Error(`Price fetch failed (${res.status})`);
   const data: { usdPrice: number } = await res.json();
   return data.usdPrice;

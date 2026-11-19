@@ -136,6 +136,12 @@ const agent = new EvmAgent(AGENT_TOKEN, 8453, undefined /* default RPC */, AGENT
 const config = await agent.getAgentConfig();
 ```
 
+## EVM cross-chain quoting and the EVM x402 helpers
+
+`CrossChainPaymentClient`'s EVM methods, `getQuote`, `buildEvmPaymentTransaction`, `waitForSolanaArrival` / `getPaymentStatus`, `createEvmX402Fetch` and `verifyEvmPayment` all call the Pump.fun cross-chain API at `PUMP_CROSSCHAIN_API` (`https://api.pump.fun/crosschain`). **That API is not live:** every route answers 404, so these helpers currently throw, and `verifyEvmPayment` returns `valid: false`.
+
+When it does work, `verifyEvmPayment` only accepts a deposit whose record names your `agentMint` and `expectedMemo`. It keeps no state, so record each accepted `txHash` and refuse it the next time. `createEvmX402Fetch` pays what the server asks: pass `onPaymentRequired` to approve or refuse each payment.
+
 ## Public exports map
 
 | Subpath | Description |

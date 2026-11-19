@@ -42,7 +42,7 @@ export async function waitForSolanaArrival(
 export async function getPaymentStatus(
   depositId: string
 ): Promise<CrossChainPaymentStatusResult> {
-  const res = await fetch(`${PUMP_CROSSCHAIN_API}/status/${depositId}`);
+  const res = await fetch(`${PUMP_CROSSCHAIN_API}/status/${encodeURIComponent(depositId)}`);
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
