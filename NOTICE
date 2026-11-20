@@ -12,9 +12,13 @@ MIT License: Pump Fun
 Applies to:
 - vendor/pump-sdk-npm/        (@pump-fun/pump-sdk 1.35.0, from npm)
 - vendor/pump-swap-sdk-npm/   (@pump-fun/pump-swap-sdk 1.15.0, from npm)
-- vendor/pump-segments-sdk/   (@pump-fun/segments-sdk 1.0.4, from npm)
+- vendor/pump-segments-sdk/   (@pump-fun/segments-sdk 1.0.4, from
+                              github.com/pump-fun/pump-segments-sdk; it is not
+                              on the public npm registry, and its package.json
+                              declares MIT without shipping a LICENSE file)
 - vendor/pump-rust-client/    (pump-rust-client 0.1.6, from crates.io)
-- the Anchor IDL files in src/solana/idl/, taken from @pump-fun/pump-sdk
+- src/solana/idl/pump_amm.json (identical to src/idl/pump_amm.json in
+                              @pump-fun/pump-sdk 3.0.0 through 4.1.0)
 
   MIT License
 
@@ -45,8 +49,12 @@ ISC License: Pump Fun
 Applies to:
 - vendor/agent-payments-sdk-107/  (@pump-fun/agent-payments-sdk 1.0.7, from npm)
 - vendor/agent-payments-sdk-npm/  (@pump-fun/agent-payments-sdk 3.0.3, from npm)
-- src/solana/legacy-agent-payments/idl.ts (IDL types derived from
-  @pump-fun/agent-payments-sdk)
+- src/solana/idl/pump_agent_payments.json (the program IDL embedded in
+  @pump-fun/agent-payments-sdk 3.0.1 and 3.0.2) and
+  src/solana/idl/pump_agent_payments.ts (its generated type helper)
+- src/solana/legacy-agent-payments/idl.json and idl.ts (the program IDL
+  embedded in @pump-fun/agent-payments-sdk 1.0.7, converted to camelCase, and
+  its types)
 
   ISC License
 
@@ -68,5 +76,25 @@ Applies to:
 Apache License 2.0
 -------------------------------------------------------------------------------
 
-- vendor/bigint-buffer/ (bigint-buffer 1.1.5). Its license is in
-  vendor/bigint-buffer/LICENSE.
+Applies to bigint-buffer 1.1.5 (from npm), vendored in seven identical copies:
+- vendor/bigint-buffer/
+- agent-prompts/solana/agents/solana-agent-kit-demo/vendor/bigint-buffer/
+- agent-prompts/solana/agents/x402-fetch-client/vendor/bigint-buffer/
+- coin-fees/vendor/bigint-buffer/
+- create-coin/vendor/bigint-buffer/
+- create-usdc-coin/vendor/bigint-buffer/
+- swap/vendor/bigint-buffer/
+
+The license text is in LICENSE inside each copy. In every copy, dist/node.js
+and package.json were changed from the published release to drop the native
+binding and fix CVE-2025-3194 (GHSA-3gc7-fjrx-p6mg); dist/node.js describes the
+change at the top of the file.
+
+-------------------------------------------------------------------------------
+Material published without a license
+-------------------------------------------------------------------------------
+
+- src/solana/idl/pump.json is a byte-for-byte copy of idl/pump.json from
+  github.com/pump-fun/pump-public-docs at commit 2293f9a (2026-10-08). That
+  repository publishes no license, so Pump Fun retains its rights in the file
+  and this repository's LICENSE does not cover it.
