@@ -3,7 +3,7 @@
  * `buy_v2` bonding-curve buy. Unified interface for SOL- and USDC-paired
  * coins via `quoteMint`. Coin must have `bondingCurve.complete === false`.
  *
- * Reference: pump-public-docs/docs/instructions/BUY.md
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md
  */
 import { parseArgs } from "node:util";
 import BN from "bn.js";

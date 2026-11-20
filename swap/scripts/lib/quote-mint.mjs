@@ -29,7 +29,7 @@ export function resolveQuoteMint(bondingCurve, override) {
 
 /**
  * Look up the SPL token program owning a quote mint. wSOL is hard-coded to
- * the legacy SPL Token program (per pump-public-docs/instructions/BUY.md);
+ * the legacy SPL Token program (per https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md);
  * for any other mint we ask the chain.
  *
  * @param {import("@solana/web3.js").Connection} connection

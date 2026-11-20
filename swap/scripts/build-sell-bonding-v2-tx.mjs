@@ -3,7 +3,7 @@
  * `sell_v2` bonding-curve sell. Unified interface for SOL- and USDC-paired
  * coins via `quoteMint`. Coin must have `bondingCurve.complete === false`.
  *
- * Reference: pump-public-docs/docs/instructions/SELL.md
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SELL.md
  */
 import { parseArgs } from "node:util";
 import BN from "bn.js";

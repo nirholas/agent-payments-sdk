@@ -10,7 +10,7 @@
  * `minAmountOut` = simulated output less slippage. Routes longer than three
  * hops need an address lookup table (`--alt`, repeatable).
  *
- * Reference: pump-public-docs/docs/PUMP_SWAP_README.md
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/docs/PUMP_SWAP_README.md
  */
 import { parseArgs } from "node:util";
 import BN from "bn.js";

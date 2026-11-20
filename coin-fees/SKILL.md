@@ -261,7 +261,7 @@ Collecting without sweeping leaves the held fees behind. Worse, the programs ref
 - `admin_cto_pool` and `create_fee_sharing_config` through `migrate_pool_coin_creator`: pump-amm **6081 `CreatorFeesNotSwept`**.
 - `update_fee_shares` (and `_v2`): pump-fees **6033 `PoolCreatorFeesNotSwept`**.
 
-Full table: `pump-public-docs/docs/instructions/SWEEP_FEES.md` in this repo.
+Full table: `https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SWEEP_FEES.md` in this repo.
 
 The three tx-building scripts below do the sweep for you; custom integrations must do the same. `OnlinePumpSdk.buildDistributeCreatorFeesInstructions` sweeps on its own; `collectCoinCreatorFeeInstructions` does **not**.
 

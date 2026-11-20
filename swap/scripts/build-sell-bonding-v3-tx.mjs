@@ -6,7 +6,7 @@
  * scripts sweep the creator bucket first).
  * Cashback coins are refused (6094): use build-sell-bonding-v2-tx.mjs.
  *
- * Reference: pump-public-docs/docs/instructions/SELL.md
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SELL.md
  */
 import { parseArgs } from "node:util";
 import BN from "bn.js";

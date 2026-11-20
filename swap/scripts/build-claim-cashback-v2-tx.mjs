@@ -3,7 +3,7 @@
  * `claim_cashback_v2`: claim cashback accrued in a user's volume accumulator.
  * Permissionless — caller need not be the cashback recipient.
  *
- * Reference: pump-public-docs/docs/instructions/CLAIM_CASHBACK.md
+ * Reference: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/CLAIM_CASHBACK.md
  */
 import { parseArgs } from "node:util";
 import { PUMP_SDK } from "@pump-fun/pump-sdk";

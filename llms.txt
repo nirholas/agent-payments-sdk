@@ -1,6 +1,6 @@
 # agent-payments-sdk
 
-> TypeScript SDK for Pump Agent Payments. Owned by [@pump-fun](https://github.com/pump-fun), published as a restricted (private) npm package.
+> TypeScript SDK for Pump Agent Payments by [@nirholas](https://github.com/nirholas), published publicly on npm as `@nirholas/agent-payments-sdk`.
 
 agent-payments-sdk is an open-source repository by nirholas, part of the three.ws ecosystem.
 

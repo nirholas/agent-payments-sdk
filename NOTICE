@@ -1,21 +1,100 @@
-This package includes code derived from @pump-fun/agent-payments-sdk
-(versions 1.0.7 and 3.0.3, https://www.npmjs.com/package/@pump-fun/agent-payments-sdk),
-which is distributed under the ISC License reproduced below.
+agent-payments-sdk (@nirholas/agent-payments-sdk)
+Copyright 2026 nirholas. All rights reserved.
 
----
+This repository is proprietary software. See LICENSE. The third-party
+software listed below is distributed under its own license, which continues
+to apply to it.
 
-ISC License
+-------------------------------------------------------------------------------
+MIT License: Pump Fun
+-------------------------------------------------------------------------------
 
-Copyright (c) Pump Fun
+Applies to:
+- vendor/pump-sdk-npm/        (@pump-fun/pump-sdk 1.35.0, from npm)
+- vendor/pump-swap-sdk-npm/   (@pump-fun/pump-swap-sdk 1.15.0, from npm)
+- vendor/pump-segments-sdk/   (@pump-fun/segments-sdk 1.0.4, from
+                              github.com/pump-fun/pump-segments-sdk; it is not
+                              on the public npm registry, and its package.json
+                              declares MIT without shipping a LICENSE file)
+- vendor/pump-rust-client/    (pump-rust-client 0.1.6, from crates.io)
+- src/solana/idl/pump_amm.json (identical to src/idl/pump_amm.json in
+                              @pump-fun/pump-sdk 3.0.0 through 4.1.0)
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+  MIT License
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  Copyright (c) Pump Fun
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+-------------------------------------------------------------------------------
+ISC License: Pump Fun
+-------------------------------------------------------------------------------
+
+Applies to:
+- vendor/agent-payments-sdk-107/  (@pump-fun/agent-payments-sdk 1.0.7, from npm)
+- vendor/agent-payments-sdk-npm/  (@pump-fun/agent-payments-sdk 3.0.3, from npm)
+- src/solana/idl/pump_agent_payments.json (the program IDL embedded in
+  @pump-fun/agent-payments-sdk 3.0.1 and 3.0.2) and
+  src/solana/idl/pump_agent_payments.ts (its generated type helper)
+- src/solana/legacy-agent-payments/idl.json and idl.ts (the program IDL
+  embedded in @pump-fun/agent-payments-sdk 1.0.7, converted to camelCase, and
+  its types)
+
+  ISC License
+
+  Copyright (c) Pump Fun
+
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+-------------------------------------------------------------------------------
+Apache License 2.0
+-------------------------------------------------------------------------------
+
+Applies to bigint-buffer 1.1.5 (from npm), vendored in seven identical copies:
+- vendor/bigint-buffer/
+- agent-prompts/solana/agents/solana-agent-kit-demo/vendor/bigint-buffer/
+- agent-prompts/solana/agents/x402-fetch-client/vendor/bigint-buffer/
+- coin-fees/vendor/bigint-buffer/
+- create-coin/vendor/bigint-buffer/
+- create-usdc-coin/vendor/bigint-buffer/
+- swap/vendor/bigint-buffer/
+
+The license text is in LICENSE inside each copy. In every copy, dist/node.js
+and package.json were changed from the published release to drop the native
+binding and fix CVE-2025-3194 (GHSA-3gc7-fjrx-p6mg); dist/node.js describes the
+change at the top of the file.
+
+-------------------------------------------------------------------------------
+Material published without a license
+-------------------------------------------------------------------------------
+
+- src/solana/idl/pump.json is a byte-for-byte copy of idl/pump.json from
+  github.com/pump-fun/pump-public-docs at commit 2293f9a (2026-10-08). That
+  repository publishes no license, so Pump Fun retains its rights in the file
+  and this repository's LICENSE does not cover it.

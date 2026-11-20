@@ -10,7 +10,7 @@ import { PublicKey } from "@solana/web3.js";
  * live list is `Global.buybackFeeRecipients`, which the v3 builders in
  * `PumpTradeClient` read instead.
  *
- * Source: pump-public-docs/docs/FEE_RECIPIENTS.md.
+ * Source: https://github.com/pump-fun/pump-public-docs/blob/main/docs/FEE_RECIPIENTS.md.
  */
 export const BUYBACK_FEE_RECIPIENTS: ReadonlyArray<PublicKey> = [
   "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",

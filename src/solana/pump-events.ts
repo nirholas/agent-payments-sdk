@@ -13,7 +13,7 @@
  * Field names are the snake_case names in the IDL (e.g. `is_buy`,
  * `sol_amount`), so the interfaces below match the runtime values exactly.
  *
- * IDL source: pump-public-docs/idl/pump.json (the October 2026 layout),
+ * IDL source: https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json (the October 2026 layout),
  * vendored as ./idl/pump.json.
  *
  * Length tolerance: every program upgrade appends fields to existing events
